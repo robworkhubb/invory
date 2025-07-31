@@ -1,13 +1,16 @@
 {
-    "name": "Invory",
+    "name": "Invory - Gestione Magazzino",
     "short_name": "Invory",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#009688",
-    "description": "Organizza, Controlla, Rifornisci",
+    "description": "Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "scope": "/",
+    "lang": "it",
+    "categories": ["business", "productivity", "utilities"],
     "icons": [
         {
             "src": "icons/Icon-192.png",
@@ -30,6 +33,32 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Aggiungi Prodotto",
+            "short_name": "Aggiungi",
+            "description": "Aggiungi un nuovo prodotto al magazzino",
+            "url": "/?action=add",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Prodotti Critici",
+            "short_name": "Critici",
+            "description": "Visualizza prodotti con scorte basse",
+            "url": "/?action=critical",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
         }
     ]
 }
