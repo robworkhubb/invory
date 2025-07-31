@@ -41,10 +41,17 @@
       // Marca che il prompt è disponibile
       localStorage.setItem('beforeinstallprompt', 'true');
       
-      // Notifica Flutter che il prompt è disponibile
-      if (window.flutter_inappwebview) {
-        window.flutter_inappwebview.callHandler('onBeforeInstallPrompt');
-      }
+      // Mostra automaticamente il banner di installazione dopo 3 secondi
+      setTimeout(() => {
+        if (localStorage.getItem('beforeinstallprompt') === 'true') {
+          // Trigger del prompt di installazione nativo di Chrome
+          e.prompt();
+          
+          // Pulisci il localStorage dopo aver mostrato il prompt
+          localStorage.removeItem('beforeinstallprompt');
+          deferredPrompt = null;
+        }
+      }, 3000);
     });
     
     // Gestisce l'evento appinstalled
@@ -53,9 +60,15 @@
       localStorage.removeItem('beforeinstallprompt');
       deferredPrompt = null;
       
-      // Notifica Flutter che l'app è stata installata
-      if (window.flutter_inappwebview) {
-        window.flutter_inappwebview.callHandler('onAppInstalled');
+      console.log('App installata con successo!');
+    });
+    
+    // Controlla se l'app è già installata al caricamento
+    window.addEventListener('load', () => {
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        // L'app è già installata, rimuovi il prompt
+        localStorage.removeItem('beforeinstallprompt');
+        deferredPrompt = null;
       }
     });
   </script>
