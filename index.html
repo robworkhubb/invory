@@ -30,10 +30,33 @@
   <!-- PWA Install Prompt -->
   <script>
     let deferredPrompt;
+    
     window.addEventListener('beforeinstallprompt', (e) => {
+      // Previeni il prompt automatico
       e.preventDefault();
+      
+      // Salva l'evento per usarlo successivamente
       deferredPrompt = e;
+      
+      // Marca che il prompt è disponibile
       localStorage.setItem('beforeinstallprompt', 'true');
+      
+      // Notifica Flutter che il prompt è disponibile
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler('onBeforeInstallPrompt');
+      }
+    });
+    
+    // Gestisce l'evento appinstalled
+    window.addEventListener('appinstalled', (evt) => {
+      // Pulisci il localStorage quando l'app è installata
+      localStorage.removeItem('beforeinstallprompt');
+      deferredPrompt = null;
+      
+      // Notifica Flutter che l'app è stata installata
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler('onAppInstalled');
+      }
     });
   </script>
 </head>
