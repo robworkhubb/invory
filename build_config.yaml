@@ -1,0 +1,36 @@
+# Build Configuration for Production
+# Invory - Performance Optimized Build
+
+flutter:
+  build:
+    # Enable tree shaking and minification
+    tree_shake: true
+    minify: true
+    
+    # Performance optimizations
+    enable_web_optimizations: true
+    enable_dart_optimizations: true
+    
+    # Asset optimization
+    compress_assets: true
+    optimize_assets: true
+
+# Web specific optimizations
+web:
+  renderer: html
+  optimize_for_size: true
+  enable_web_optimizations: true
+
+# Android specific optimizations  
+android:
+  build:
+    enable_proguard: true
+    enable_r8: true
+    minify_enabled: true
+    shrink_resources: true
+
+# iOS specific optimizations
+ios:
+  build:
+    enable_bitcode: false
+    enable_arm64: true 

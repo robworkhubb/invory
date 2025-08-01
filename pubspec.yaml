@@ -1,0 +1,71 @@
+name: invory
+description: "Invory - Organizza, Controlla, Rifornisci"
+
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  intl: ^0.20.2
+  url_launcher: ^6.3.1
+  firebase_core: ^2.25.4
+  firebase_auth: ^4.17.5
+  cloud_firestore: ^4.15.5
+  firebase_messaging: ^14.7.4
+  http: ^1.1.0
+  provider: ^6.1.2
+  get_it: ^8.1.0
+  fl_chart: ^0.67.0
+  flutter_local_notifications: ^18.0.1
+  lottie: ^3.1.2
+  animations: ^2.0.11
+  permission_handler: ^12.0.0+1
+  flutter_staggered_animations: ^1.1.1
+  flutter_floating_bottom_bar: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "images/logo.png"
+  image_path: "images/logo.png"
+
+flutter_launcher_name:
+  name: "Invory"
+
+  flutter_lints: ^5.0.0
+flutter:
+
+  uses-material-design: true
+
+  assets:
+  - images/logo.png
+  - animations/splash.json
+
+
+
+  fonts:
+     - family: Poppins
+       fonts:
+         - asset: fonts/Poppins-Regular.ttf
+         - asset: fonts/Poppins-Medium.ttf
+         - asset: fonts/Poppins-Bold.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+

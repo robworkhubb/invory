@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "524552556806",
+    "project_id": "invory-b9a72",
+    "storage_bucket": "invory-b9a72.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:524552556806:android:3e64c43e85e1c82f684e87",
+        "android_client_info": {
+          "package_name": "com.invory.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdEy-a_JWaTUeSvD5rQrOIY_2-Xbej2UY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
