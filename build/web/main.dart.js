@@ -96602,7 +96602,7 @@ xO(a,b,c,d){return this.a2f(a,b,c,d)},
 a2f(a,b,c,d){var s=0,r=A.E(t.a),q,p=2,o=[],n,m,l,k,j,i,h,g,f
 var $async$xO=A.A(function(e,a0){if(e===1){o.push(a0)
 s=p}while(true)switch(s){case 0:p=4
-k=A.hR("http://localhost:3000/test",0,null)
+k=A.hR("https://your-notification-service.railway.app/test",0,null)
 j=t.N
 i=A.an(["Content-Type","application/json","x-api-key","790f63ac0c4d020fe9facf85cbba85cfce14f5e81d5d828e160e3ea61c414ee0"],j,j)
 s=7
