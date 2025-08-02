@@ -95049,24 +95049,28 @@ case 6:case 1:return A.B(q,r)
 case 2:return A.A(o.at(-1),r)}})
 return A.C($async$xa,r)},
 pV(a,b,c){return this.a1i(a,b,c)},
-a1i(a,b,c){var s=0,r=A.D(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h
+a1i(a,b,c){var s=0,r=A.D(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f
 var $async$pV=A.E(function(d,e){if(d===1){o.push(e)
 s=p}while(true)switch(s){case 0:p=4
 s=7
 return A.w(n.xa(),$async$pV)
 case 7:m=e
 if(J.j0(m)){s=1
-break}k=J.b3(m)
-case 8:if(!k.A()){s=9
-break}l=k.gL(k)
+break}l=n.Qf()
+k=0
+i=J.b3(m)
+case 8:if(!i.A()){s=9
+break}j=i.gL(i)
 p=11
-s=14
-return A.w(n.zd(l,c,a,b),$async$pV)
-case 14:p=4
+if(J.e(j,l)){s=8
+break}s=14
+return A.w(n.zd(j,c,a,b),$async$pV)
+case 14:++k
+p=4
 s=13
 break
 case 11:p=10
-i=o.pop()
+g=o.pop()
 s=13
 break
 case 10:s=4
@@ -95077,7 +95081,7 @@ case 9:p=2
 s=6
 break
 case 4:p=3
-h=o.pop()
+f=o.pop()
 s=6
 break
 case 3:s=2
@@ -95089,22 +95093,23 @@ zd(a,b,c,d){return this.ajF(a,b,c,d)},
 ajF(a,b,c,d){var s=0,r=A.D(t.H),q=1,p=[],o=this,n,m,l,k,j,i,h
 var $async$zd=A.E(function(e,f){if(e===1){p.push(f)
 s=q}while(true)switch(s){case 0:q=3
-if(a===o.Qf())if(A.aJw()==="granted"){l=t.z
-k=A.y(l,l)
-k.n(0,"body",c)
-k.n(0,"tag","invory_notification")
-k.n(0,"icon","/icons/Icon-192.png")
-n=A.b2Z(b,k)
+if(A.aJw()==="granted"){l=Date.now()
+k=t.z
+j=A.y(k,k)
+j.n(0,"body",c)
+j.n(0,"tag","invory_notification_"+l)
+j.n(0,"icon","/invory/icons/Icon-192.png")
+n=A.b2Z(b,j)
 A.aS3(n,"click",new A.ad1(),!1,t.I3)}m=o.b.gi1()
 s=m!=null?6:7
 break
 case 6:l=o.a
 l=A.zs(l,l.gh8().fQ("users")).eC(m.a.c.a.a).fQ("tokens").eC(a)
-j=$.a6F().o1()
-j=A.awq(A.aC(["lastUsed",new A.jm(j,j)],t.K,t.X))
-j.toString
+k=$.a6F().o1()
+k=A.awq(A.aC(["lastUsed",new A.jm(k,k)],t.K,t.X))
+k.toString
 s=8
-return A.w(l.a.bt(0,j),$async$zd)
+return A.w(l.a.bt(0,k),$async$zd)
 case 8:case 7:q=1
 s=5
 break
