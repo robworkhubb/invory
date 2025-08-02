@@ -89,21 +89,15 @@ class FCMHttpService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // Recupera tutti i token dell'utente
-      final tokensSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('fcmTokens')
-              .where('isActive', isEqualTo: true)
-              .get();
+      // Recupera tutti i token dell'utente direttamente da Firestore
+      final tokens = await _getUserTokensFromFirestore(userId);
 
-      if (tokensSnapshot.docs.isEmpty) {
+      if (tokens.isEmpty) {
         debugPrint("Nessun token trovato per l'utente: $userId");
         return false;
       }
 
-      final tokens = tokensSnapshot.docs.map((doc) => doc.id).toList();
+      debugPrint("Trovati ${tokens.length} token per l'utente: $userId");
 
       final result = await sendToMultipleTokens(
         tokens: tokens,
@@ -137,6 +131,23 @@ class FCMHttpService {
     }
   }
 
+  // Recupera i token dell'utente direttamente da Firestore
+  Future<List<String>> _getUserTokensFromFirestore(String userId) async {
+    try {
+      final tokensSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('fcmTokens')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      return tokensSnapshot.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      debugPrint('Errore nel recupero token da Firestore: $e');
+      return [];
+    }
+  }
+
   // Metodo per rimuovere token non validi
   Future<void> _removeInvalidTokens(
     String userId,
@@ -163,7 +174,41 @@ class FCMHttpService {
     }
   }
 
-  // Metodo per testare la connessione API
+  // Verifica i token salvati per l'utente corrente
+  Future<List<Map<String, dynamic>>> getCurrentUserTokens() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('Utente non autenticato');
+        return [];
+      }
+
+      final tokensSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('fcmTokens')
+          .get();
+
+      final tokens = tokensSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'token': doc.id,
+          'platform': data['platform'] ?? 'unknown',
+          'isActive': data['isActive'] ?? false,
+          'lastUsed': data['lastUsed']?.toDate()?.toString() ?? 'N/A',
+          'createdAt': data['createdAt']?.toDate()?.toString() ?? 'N/A',
+        };
+      }).toList();
+
+      debugPrint('Trovati ${tokens.length} token per l\'utente corrente');
+      return tokens;
+    } catch (e) {
+      debugPrint('Errore nel recupero token utente corrente: $e');
+      return [];
+    }
+  }
+
+  // Testa la connessione API
   Future<bool> testConnection() async {
     try {
       final response = await http.get(
@@ -185,8 +230,15 @@ class FCMHttpService {
   Future<void> saveToken(String token) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        debugPrint('Utente non autenticato, impossibile salvare il token FCM');
+        return;
+      }
 
+      debugPrint('Salvando token FCM per utente: ${user.uid}');
+      debugPrint('Token: ${token.substring(0, 20)}...');
+
+      // Salva direttamente in Firestore
       await _firestore
           .collection('users')
           .doc(user.uid)
@@ -197,9 +249,47 @@ class FCMHttpService {
             'platform': getPlatform(),
             'lastUsed': FieldValue.serverTimestamp(),
             'isActive': true,
+            'createdAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+
+      debugPrint('Token FCM salvato con successo in Firestore');
+
+      // Opzionalmente, invia anche al servizio Node.js per backup
+      try {
+        await _sendTokenToNotificationService(token, user.uid);
+      } catch (e) {
+        debugPrint('Errore nell\'invio token al servizio di notifiche: $e');
+        // Non bloccare il flusso principale se il servizio è down
+      }
     } catch (e) {
       debugPrint('Errore nel salvataggio del token FCM: $e');
+      rethrow;
+    }
+  }
+
+  // Metodo per inviare il token al servizio di notifiche (opzionale)
+  Future<void> _sendTokenToNotificationService(String token, String userId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiUrl/save-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': _apiKey,
+        },
+        body: jsonEncode({
+          'token': token,
+          'platform': getPlatform(),
+          'userId': userId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Token inviato con successo al servizio di notifiche');
+      } else {
+        debugPrint('Errore nell\'invio token al servizio: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Errore nella comunicazione con il servizio di notifiche: $e');
     }
   }
 

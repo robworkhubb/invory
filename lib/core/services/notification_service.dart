@@ -6,6 +6,7 @@ import 'package:invory/core/services/fcm_http_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../domain/entities/product.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 abstract class INotificationService {
   Future<void> initialize();
@@ -75,20 +76,26 @@ class NotificationService implements INotificationService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Inizializza FCM
-    await _initializeFCM();
+    debugPrint('Inizializzazione servizio notifiche...');
 
+    // Inizializza prima il web se necessario
     if (kIsWeb) {
       await _initializeWeb();
     } else {
       await _initializeMobile();
     }
 
+    // Poi inizializza FCM
+    await _initializeFCM();
+
     _isInitialized = true;
+    debugPrint('Servizio notifiche inizializzato con successo');
   }
 
   Future<void> _initializeFCM() async {
     try {
+      debugPrint('Inizializzazione FCM...');
+      
       // Richiedi permesso per le notifiche
       final settings = await _messaging.requestPermission(
         alert: true,
@@ -96,22 +103,24 @@ class NotificationService implements INotificationService {
         sound: true,
       );
 
+      debugPrint('Stato autorizzazione FCM: ${settings.authorizationStatus}');
+
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         _permissionsGranted = true;
+        debugPrint('Permessi FCM concessi');
 
-        // Ottieni e salva il token FCM
-        final token = await _messaging.getToken();
-        if (token != null) {
-          await _fcmService.saveToken(token);
-        }
+        // Ottieni e salva il token FCM con retry
+        await _getAndSaveTokenWithRetry();
 
         // Ascolta i cambiamenti del token
         _messaging.onTokenRefresh.listen((token) {
+          debugPrint('Token FCM aggiornato: ${token.substring(0, 20)}...');
           _fcmService.saveToken(token);
         });
 
         // Gestisci le notifiche in foreground
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          debugPrint('Notifica FCM ricevuta in foreground: ${message.notification?.title}');
           if (message.notification != null) {
             if (kIsWeb) {
               _showWebNotification(
@@ -143,26 +152,165 @@ class NotificationService implements INotificationService {
         // Gestisci il click sulla notifica quando l'app è in background
         FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
           // Implementa la navigazione se necessario
-          print('Notifica aperta: ${message.data}');
+          debugPrint('Notifica aperta: ${message.data}');
         });
+      } else {
+        debugPrint('Permessi FCM negati: ${settings.authorizationStatus}');
       }
     } catch (e) {
       debugPrint('Errore nell\'inizializzazione FCM: $e');
+      // Non bloccare l'inizializzazione se FCM fallisce
+    }
+  }
+
+  // Ottieni e salva il token con retry logic
+  Future<void> _getAndSaveTokenWithRetry() async {
+    int attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        debugPrint('Tentativo $attempts/$maxAttempts per ottenere token FCM...');
+        
+        final token = await _messaging.getToken();
+        if (token != null) {
+          debugPrint('Token FCM ottenuto: ${token.substring(0, 20)}...');
+          
+          // Salva il token solo se l'utente è autenticato
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            await _fcmService.saveToken(token);
+            debugPrint('Token FCM salvato con successo');
+          } else {
+            debugPrint('Utente non autenticato, token FCM ottenuto ma non salvato');
+            // Salva il token in memoria per salvarlo dopo l'autenticazione
+            _pendingToken = token;
+          }
+          return;
+        } else {
+          debugPrint('Token FCM nullo, tentativo $attempts');
+        }
+      } catch (e) {
+        debugPrint('Errore nel tentativo $attempts: $e');
+      }
+      
+      // Aspetta prima del prossimo tentativo
+      if (attempts < maxAttempts) {
+        await Future.delayed(Duration(seconds: attempts * 2)); // Backoff esponenziale
+      }
+    }
+    
+    debugPrint('Impossibile ottenere token FCM dopo $maxAttempts tentativi');
+  }
+
+  // Token in attesa di essere salvato dopo l'autenticazione
+  String? _pendingToken;
+
+  // Metodo per salvare il token pendente dopo l'autenticazione
+  Future<void> savePendingToken() async {
+    if (_pendingToken != null) {
+      debugPrint('Salvando token FCM pendente dopo autenticazione...');
+      await _fcmService.saveToken(_pendingToken!);
+      _pendingToken = null;
+      debugPrint('Token FCM pendente salvato con successo');
+    }
+  }
+
+  // Metodo per forzare la richiesta di un nuovo token FCM
+  Future<String?> forceTokenRefresh() async {
+    try {
+      debugPrint('Forzando refresh del token FCM...');
+      final token = await _messaging.getToken();
+      if (token != null) {
+        debugPrint('Nuovo token FCM ottenuto: ${token.substring(0, 20)}...');
+        await _fcmService.saveToken(token);
+        return token;
+      } else {
+        debugPrint('Errore: Nuovo token FCM nullo');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Errore nel refresh del token FCM: $e');
+      return null;
     }
   }
 
   Future<void> _initializeWeb() async {
     try {
+      debugPrint('Inizializzazione web...');
+
       // Registra il service worker per le notifiche PWA
       if (html.window.navigator.serviceWorker != null) {
-        await html.window.navigator.serviceWorker?.register('/sw.js');
+        debugPrint('Registrazione service worker...');
+
+        try {
+          final registration = await html.window.navigator.serviceWorker
+              ?.register('/sw.js');
+          debugPrint('Service worker registrato: ${registration?.scope}');
+
+          // Aspetta che il service worker sia attivo
+          if (registration != null) {
+            await _waitForServiceWorkerActivation(registration);
+          }
+        } catch (e) {
+          debugPrint('Errore nella registrazione service worker: $e');
+          // Prova a registrare il service worker di Firebase
+          try {
+            await html.window.navigator.serviceWorker?.register(
+              '/firebase-messaging-sw.js',
+            );
+            debugPrint('Firebase service worker registrato come fallback');
+          } catch (firebaseError) {
+            debugPrint(
+              'Errore anche nel fallback Firebase service worker: $firebaseError',
+            );
+          }
+        }
+      } else {
+        debugPrint('Service Worker non supportato');
       }
 
       // Controlla se l'app può essere installata
       // Listener per l'evento beforeinstallprompt
-      html.window.addEventListener('beforeinstallprompt', (event) {});
+      html.window.addEventListener('beforeinstallprompt', (event) {
+        debugPrint('Evento beforeinstallprompt catturato');
+        html.window.localStorage['beforeinstallprompt'] = 'true';
+      });
+
+      debugPrint('Inizializzazione web completata');
     } catch (e) {
-      print('Errore nell\'inizializzazione web: $e');
+      debugPrint('Errore nell\'inizializzazione web: $e');
+    }
+  }
+
+  // Aspetta che il service worker sia attivo
+  Future<void> _waitForServiceWorkerActivation(
+    html.ServiceWorkerRegistration registration,
+  ) async {
+    if (registration.active != null) {
+      debugPrint('Service worker già attivo');
+      return;
+    }
+
+    debugPrint('In attesa dell\'attivazione del service worker...');
+
+    // Aspetta fino a 10 secondi per l'attivazione
+    int attempts = 0;
+    const maxAttempts = 20; // 20 tentativi * 500ms = 10 secondi
+
+    while (registration.active == null && attempts < maxAttempts) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      attempts++;
+      debugPrint(
+        'Tentativo $attempts/$maxAttempts per attivazione service worker...',
+      );
+    }
+
+    if (registration.active != null) {
+      debugPrint('Service worker attivato con successo');
+    } else {
+      debugPrint('Timeout nell\'attivazione del service worker');
     }
   }
 

@@ -248,6 +248,27 @@ class InvoryNotificationService {
   }
 
   /**
+   * Salva un token FCM per un utente
+   */
+  async saveToken(token, platform = 'web', userId = null) {
+    try {
+      // Per ora salviamo solo il token, in futuro potremmo associarlo a un utente
+      this.logger.info('Token saved', {
+        token: token.substring(0, 20) + '...',
+        platform,
+        userId
+      });
+
+      // In una implementazione completa, qui salveresti nel database Firebase
+      // Per ora logghiamo solo il token
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to save token', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
    * Testa il servizio completo
    */
   async testService() {

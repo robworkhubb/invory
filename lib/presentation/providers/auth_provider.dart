@@ -4,6 +4,7 @@ import '../../domain/entities/user.dart';
 import 'package:provider/provider.dart';
 import 'product_provider.dart';
 import 'supplier_provider.dart';
+import '../../core/services/notification_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthRepository _authRepository;
@@ -24,6 +25,15 @@ class AuthProvider with ChangeNotifier {
 
     try {
       _currentUser = await _authRepository.login(email, password);
+
+      // Salva il token FCM pendente dopo l'autenticazione
+      try {
+        final notificationService = NotificationService();
+        await notificationService.savePendingToken();
+      } catch (e) {
+        print('Errore nel salvataggio del token FCM: $e');
+      }
+
       notifyListeners();
     } catch (e) {
       _isLoading = false;

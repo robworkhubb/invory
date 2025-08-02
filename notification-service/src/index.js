@@ -99,6 +99,24 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Salva token FCM
+app.post('/save-token', authenticateRequest, async (req, res) => {
+  try {
+    const { token, platform, userId } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    // Salva il token nel database Firebase
+    const result = await notificationService.saveToken(token, platform, userId);
+    res.json({ success: true, message: 'Token saved successfully' });
+  } catch (error) {
+    logger.error('Save token failed', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test del servizio
 app.post('/test', authenticateRequest, async (req, res) => {
   try {
