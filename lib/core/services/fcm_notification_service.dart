@@ -5,7 +5,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FCMNotificationService {
   static final FCMNotificationService _instance =
@@ -94,7 +93,9 @@ class FCMNotificationService {
           });
 
       if (kDebugMode) {
-        print('Token FCM salvato: $token');
+        print(
+          'Token FCM salvato: ${token.length > 20 ? token.substring(0, 20) + '...' : token}',
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -124,6 +125,18 @@ class FCMNotificationService {
         print('Errore nel recupero dei token: $e');
       }
       return [];
+    }
+  }
+
+  /// Ottiene il token corrente del dispositivo
+  Future<String?> _getCurrentToken() async {
+    try {
+      return await _messaging.getToken();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Errore nell\'ottenimento del token corrente: $e');
+      }
+      return null;
     }
   }
 
@@ -192,7 +205,7 @@ class FCMNotificationService {
     }
   }
 
-  /// Invia una notifica push a tutti i dispositivi dell'utente
+  /// Invia una notifica push a tutti i dispositivi dell'utente (tranne quello corrente)
   Future<void> sendNotificationToUser({
     required String title,
     required String body,
@@ -215,6 +228,12 @@ class FCMNotificationService {
         return;
       }
 
+      final currentToken = await _getCurrentToken();
+      if (kDebugMode) {
+        print('Token corrente: ${currentToken?.substring(0, 20) ?? 'null'}...');
+        print('Trovati ${tokens.length} token totali');
+      }
+
       final accessToken = await _getAccessToken();
       if (accessToken == null) {
         if (kDebugMode) {
@@ -223,8 +242,19 @@ class FCMNotificationService {
         return;
       }
 
-      // Invia la notifica a tutti i token
+      // Invia la notifica a tutti i token TRANNE quello corrente
+      int notificationsSent = 0;
       for (String token in tokens) {
+        // Salta il token corrente (dispositivo che ha fatto la modifica)
+        if (currentToken != null && token == currentToken) {
+          if (kDebugMode) {
+            print(
+              '⏭️ Salto token corrente (modificatore): ${token.substring(0, 20)}...',
+            );
+          }
+          continue;
+        }
+
         await _sendSingleNotification(
           token: token,
           title: title,
@@ -232,10 +262,13 @@ class FCMNotificationService {
           data: data,
           accessToken: accessToken,
         );
+        notificationsSent++;
       }
 
       if (kDebugMode) {
-        print('Notifica inviata a ${tokens.length} dispositivi');
+        print(
+          'Notifiche inviate a $notificationsSent dispositivi (escluso il modificatore)',
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -292,7 +325,9 @@ class FCMNotificationService {
 
       if (response.statusCode == 200) {
         if (kDebugMode) {
-          print('Notifica inviata con successo al token: $token');
+          print(
+            'Notifica inviata con successo al token: ${token.substring(0, 20)}...',
+          );
         }
       } else {
         if (kDebugMode) {
@@ -327,7 +362,7 @@ class FCMNotificationService {
           .delete();
 
       if (kDebugMode) {
-        print('Token non valido rimosso: $token');
+        print('Token non valido rimosso: ${token.substring(0, 20)}...');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -352,7 +387,7 @@ class FCMNotificationService {
 
     final title = 'Prodotto sotto scorta';
     final body =
-        'Il prodotto $productName è sotto la soglia (${currentQuantity}/${threshold})';
+        'Il prodotto $productName è sotto la soglia ($currentQuantity/$threshold)';
 
     final data = {
       'type': 'low_stock',

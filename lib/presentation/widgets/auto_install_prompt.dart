@@ -4,7 +4,7 @@ import 'dart:html' as html;
 import '../../../core/services/notification_service.dart';
 
 class AutoInstallPrompt extends StatefulWidget {
-  const AutoInstallPrompt({Key? key}) : super(key: key);
+  const AutoInstallPrompt({super.key});
 
   @override
   State<AutoInstallPrompt> createState() => _AutoInstallPromptState();
@@ -34,7 +34,7 @@ class _AutoInstallPromptState extends State<AutoInstallPrompt> {
           });
         } else {
           // Controlla se l'evento beforeinstallprompt è disponibile
-          if (html.window.localStorage['beforeinstallprompt'] == 'true' && 
+          if (html.window.localStorage['beforeinstallprompt'] == 'true' &&
               !_hasShownPrompt) {
             // Mostra il prompt automaticamente dopo 1 secondo (più veloce)
             Future.delayed(const Duration(seconds: 1), () {
@@ -58,7 +58,7 @@ class _AutoInstallPromptState extends State<AutoInstallPrompt> {
       try {
         // Usa il servizio di notifiche per mostrare il prompt
         await _notificationService.showInstallPrompt();
-        
+
         setState(() {
           _showPrompt = false;
         });
@@ -156,4 +156,4 @@ class _AutoInstallPromptState extends State<AutoInstallPrompt> {
       ),
     );
   }
-} 
+}

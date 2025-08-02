@@ -29,7 +29,7 @@ class ProductCard extends StatelessWidget {
   final int? suggerita;
 
   const ProductCard({
-    Key? key,
+    super.key,
     required this.nome,
     required this.quantita,
     required this.soglia,
@@ -39,7 +39,7 @@ class ProductCard extends StatelessWidget {
     this.onDelete,
     this.showEditDelete = true,
     this.suggerita,
-  }) : super(key: key); // Costruttore const: ottimo per performance
+  }); // Costruttore const: ottimo per performance
 
   // Performance optimization: calculate colors once
   _CardColors _getCardColors() {

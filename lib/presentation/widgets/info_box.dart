@@ -10,13 +10,13 @@ class InfoBox extends StatelessWidget {
   final Color iconColor;
 
   const InfoBox({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.gradientColors,
     required this.icon,
     required this.iconColor,
-  }) : super(key: key); // Costruttore const: ottimo per performance
+  }); // Costruttore const: ottimo per performance
 
   @override
   Widget build(BuildContext context) {

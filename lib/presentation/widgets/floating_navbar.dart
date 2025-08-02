@@ -7,6 +7,8 @@ import '../../presentation/screens/ordinerapido.dart';
 import '../../presentation/screens/prodotti_page.dart';
 
 class FloatingBottomNavBar extends StatefulWidget {
+  const FloatingBottomNavBar({super.key});
+
   @override
   _FloatingBottomNavBarState createState() => _FloatingBottomNavBarState();
 }

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 class FornitoreDialog extends StatelessWidget {
   final void Function(String nome, String numero) onSave;
 
-  const FornitoreDialog({Key? key, required this.onSave})
-    : super(key: key); // Costruttore const: ottimo per performance
+  const FornitoreDialog({
+    super.key,
+    required this.onSave,
+  }); // Costruttore const: ottimo per performance
 
   @override
   Widget build(BuildContext context) {

@@ -5,7 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 class NotificationHandler extends StatefulWidget {
   final Widget child;
 
-  const NotificationHandler({Key? key, required this.child}) : super(key: key);
+  const NotificationHandler({super.key, required this.child});
 
   @override
   State<NotificationHandler> createState() => _NotificationHandlerState();

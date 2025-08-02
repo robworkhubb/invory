@@ -6,10 +6,10 @@ class AddProductForm extends StatefulWidget {
   final Function(Map<String, dynamic>) onSave;
   final Map<String, dynamic>? prodottoDaModificare;
   const AddProductForm({
-    Key? key,
+    super.key,
     this.prodottoDaModificare,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<AddProductForm> createState() => _AddProductFormState();
@@ -212,7 +212,7 @@ class _AddProductFormState extends State<AddProductForm> {
 // Pagina principale per gestire i prodotti e aprire il form
 
 class ProdottiPage extends StatefulWidget {
-  const ProdottiPage({Key? key}) : super(key: key);
+  const ProdottiPage({super.key});
 
   @override
   State<ProdottiPage> createState() => _ProdottiPageState();

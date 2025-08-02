@@ -5,8 +5,7 @@ class LowStockAlert extends StatelessWidget {
   final List<Product> products;
   final VoidCallback? onRefresh;
 
-  const LowStockAlert({Key? key, required this.products, this.onRefresh})
-    : super(key: key);
+  const LowStockAlert({super.key, required this.products, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +109,7 @@ class LowStockAlert extends StatelessWidget {
                     ],
                   ),
                 ),
-              )
-              .toList(),
+              ),
           if (lowStockProducts.length > 3)
             Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -10,7 +10,7 @@ import '../widgets/main_button.dart';
 import '../widgets/product_card.dart';
 
 class OrdineRapidoPage extends StatefulWidget {
-  const OrdineRapidoPage({Key? key}) : super(key: key);
+  const OrdineRapidoPage({super.key});
 
   @override
   State<OrdineRapidoPage> createState() => _OrdineRapidoPageState();
@@ -56,11 +56,9 @@ class _OrdineRapidoPageState extends State<OrdineRapidoPage> {
     }
 
     String messaggio = Uri.encodeComponent(
-      "📦 Ordine: \n" +
-          prodottiDaOrdinare
+      "📦 Ordine: \n${prodottiDaOrdinare
               .map((p) => "- ${p['nome']} x ${(p['soglia'] as int) * 2}")
-              .join("\n") +
-          "\n📅 Data: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}\nOrdine fatto con l'app Invory ✅.",
+              .join("\n")}\n📅 Data: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}\nOrdine fatto con l'app Invory ✅.",
     );
 
     final url = Uri.parse("https://wa.me/$numero?text=$messaggio");
@@ -164,8 +162,8 @@ class _OrdineRapidoPageState extends State<OrdineRapidoPage> {
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text("Elimina"),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text("Elimina"),
               ),
             ],
           ),

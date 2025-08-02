@@ -8,13 +8,13 @@ class MainButton extends StatelessWidget {
   final Color? textColor;
 
   const MainButton({
-    Key? key,
+    super.key,
     required this.label,
     required this.onPressed,
     this.icon,
     this.color,
     this.textColor,
-  }) : super(key: key); // Costruttore const: ottimo per performance
+  }); // Costruttore const: ottimo per performance
 
   @override
   Widget build(BuildContext context) {

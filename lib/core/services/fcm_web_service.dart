@@ -2,8 +2,8 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-/// Servizio specifico per le notifiche web che funziona senza backend
 class FCMWebService {
   static final FCMWebService _instance = FCMWebService._internal();
   factory FCMWebService() => _instance;
@@ -11,6 +11,25 @@ class FCMWebService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  /// Genera un ID univoco per il browser
+  String _generateBrowserId() {
+    final userAgent = html.window.navigator.userAgent;
+    final platform = html.window.navigator.platform;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random =
+        timestamp.toString() + (100000 + DateTime.now().microsecond).toString();
+
+    // Crea un hash univoco per questo browser
+    final hash = '$userAgent-$platform-$random'.hashCode.toString();
+    return 'web_${hash}_${timestamp}';
+  }
+
+  /// Ottieni l'ID del dispositivo corrente
+  String _getDeviceId() {
+    return html.window.localStorage['deviceId'] ?? _generateBrowserId();
+  }
 
   /// Inizializza il servizio web
   Future<void> initialize() async {
@@ -26,6 +45,38 @@ class FCMWebService {
           print('Permesso notifiche web: $permission');
         }
       }
+
+      // Genera e salva l'ID del dispositivo se non esiste
+      final deviceId = _getDeviceId();
+      if (html.window.localStorage['deviceId'] == null) {
+        html.window.localStorage['deviceId'] = deviceId;
+        if (kDebugMode) {
+          print(
+            'Nuovo ID dispositivo generato: ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId}',
+          );
+        }
+      }
+
+      // Ottieni il token FCM per il web
+      final fcmToken = await _messaging.getToken();
+      if (fcmToken != null) {
+        await saveToken(fcmToken);
+        if (kDebugMode) {
+          print(
+            'Token FCM web salvato: ${fcmToken.length > 20 ? fcmToken.substring(0, 20) + '...' : fcmToken}',
+          );
+        }
+      }
+
+      // Configura il listener per le notifiche in background
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        if (kDebugMode) {
+          print(
+            'Notifica ricevuta in foreground: ${message.notification?.title}',
+          );
+        }
+        _showLocalNotification(message);
+      });
     } catch (e) {
       if (kDebugMode) {
         print('Errore nell\'inizializzazione servizio web: $e');
@@ -51,6 +102,7 @@ class FCMWebService {
           .doc(token)
           .set({
             'token': token,
+            'deviceId': _getDeviceId(),
             'createdAt': FieldValue.serverTimestamp(),
             'lastUsed': FieldValue.serverTimestamp(),
             'platform': 'web',
@@ -58,7 +110,9 @@ class FCMWebService {
           }, SetOptions(merge: true));
 
       if (kDebugMode) {
-        print('Token FCM web salvato: ${token.substring(0, 20)}...');
+        print(
+          'Token FCM web salvato: ${token.length > 20 ? token.substring(0, 20) + '...' : token}',
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -68,7 +122,7 @@ class FCMWebService {
   }
 
   /// Ottiene tutti i token dell'utente
-  Future<List<String>> getUserTokens() async {
+  Future<List<Map<String, dynamic>>> getUserTokens() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return [];
@@ -82,7 +136,14 @@ class FCMWebService {
               .where('isActive', isEqualTo: true)
               .get();
 
-      return querySnapshot.docs.map((doc) => doc.id).toList();
+      return querySnapshot.docs
+          .map(
+            (doc) => {
+              'token': doc.data()['token'],
+              'deviceId': doc.data()['deviceId'],
+            },
+          )
+          .toList();
     } catch (e) {
       if (kDebugMode) {
         print('Errore nel recupero dei token web: $e');
@@ -91,43 +152,161 @@ class FCMWebService {
     }
   }
 
-  /// Invia una notifica web locale
-  Future<void> sendWebNotification({
+  /// Invia notifica a tutti i dispositivi registrati (tranne quello che ha fatto la modifica)
+  Future<void> sendNotificationToAllDevices({
     required String title,
     required String body,
     Map<String, dynamic>? data,
   }) async {
     try {
-      if (html.Notification.permission != 'granted') {
+      if (kDebugMode) {
+        print('🔔 Invio notifica a tutti i dispositivi: $title');
+      }
+
+      // Ottieni tutti i token attivi dell'utente
+      final tokens = await getUserTokens();
+      if (tokens.isEmpty) {
         if (kDebugMode) {
-          print('Permessi notifiche web non concessi');
+          print('❌ Nessun dispositivo registrato per le notifiche');
         }
         return;
       }
 
-      // Crea la notifica web
-      final notification = html.Notification(
-        title,
-        body: body,
-        icon: '/icons/Icon-192.png',
-        tag: 'invory_notification',
-      );
-
+      final currentDeviceId = _getDeviceId();
       if (kDebugMode) {
-        print('Notifica web inviata: $title - $body');
+        print(
+          '📱 Dispositivo corrente: ${currentDeviceId.length > 20 ? currentDeviceId.substring(0, 20) + '...' : currentDeviceId}',
+        );
+        print('📱 Trovati ${tokens.length} dispositivi registrati');
       }
 
-      // Gestisci il click sulla notifica
-      notification.onClick.listen((event) {
-        if (kDebugMode) {
-          print('Notifica web cliccata: $title');
+      // Crea un ID univoco per questa notifica per evitare duplicati
+      final notificationId =
+          '${DateTime.now().millisecondsSinceEpoch}_${title.hashCode}_${currentDeviceId}';
+
+      // Invia la notifica a tutti i dispositivi TRANNE quello corrente
+      int notificationsSent = 0;
+      for (final tokenData in tokens) {
+        final token = tokenData['token'];
+        final deviceId = tokenData['deviceId'];
+
+        try {
+          // SALTA il dispositivo corrente (quello che ha fatto la modifica)
+          if (deviceId == currentDeviceId) {
+            if (kDebugMode) {
+              print(
+                '⏭️ SALTO dispositivo corrente (modificatore): ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId}',
+              );
+            }
+            continue; // IMPORTANTE: salta completamente questo dispositivo
+          }
+
+          // Invia la notifica FCM al dispositivo specifico
+          await _sendFCMNotification(token, title, body, data, notificationId);
+          notificationsSent++;
+
+          if (kDebugMode) {
+            print(
+              '✅ Notifica FCM inviata al dispositivo: ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId}',
+            );
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print(
+              '❌ Errore nell\'invio della notifica al dispositivo: ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId} - $e',
+            );
+          }
         }
-        // Qui puoi aggiungere la logica per aprire l'app o navigare
-      });
+      }
+
+      if (kDebugMode) {
+        print(
+          '✅ Notifiche inviate a $notificationsSent dispositivi (escluso il modificatore)',
+        );
+      }
     } catch (e) {
       if (kDebugMode) {
-        print('Errore nell\'invio notifica web: $e');
+        print('❌ Errore nell\'invio delle notifiche: $e');
       }
+    }
+  }
+
+  /// Invia notifica FCM a un dispositivo specifico
+  Future<void> _sendFCMNotification(
+    String fcmToken,
+    String title,
+    String body,
+    Map<String, dynamic>? data,
+    String notificationId,
+  ) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        // CONTROLLO DUPLICATI: Verifica se la notifica è già stata inviata
+        final existingNotification =
+            await _firestore
+                .collection('users')
+                .doc(user.uid)
+                .collection('notifications')
+                .where('notificationId', isEqualTo: notificationId)
+                .where('targetDeviceId', isEqualTo: fcmToken)
+                .limit(1) // Limita a 1 risultato per efficienza
+                .get();
+
+        if (existingNotification.docs.isNotEmpty) {
+          if (kDebugMode) {
+            print(
+              '⚠️ Notifica già inviata, salto duplicato per token: ${fcmToken.length > 20 ? fcmToken.substring(0, 20) + '...' : fcmToken}',
+            );
+          }
+          return; // Esci senza salvare la notifica
+        }
+
+        // Salva la notifica solo se non esiste già
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('notifications')
+            .add({
+              'title': title,
+              'body': body,
+              'data': data,
+              'timestamp': FieldValue.serverTimestamp(),
+              'read': false,
+              'targetDeviceId': fcmToken,
+              'notificationId': notificationId,
+              'sourceDeviceId':
+                  _getDeviceId(), // Aggiungi il dispositivo sorgente
+            });
+
+        if (kDebugMode) {
+          print(
+            '📝 Notifica salvata in Firestore per dispositivo: ${fcmToken.length > 20 ? fcmToken.substring(0, 20) + '...' : fcmToken}',
+          );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'invio notifica FCM al dispositivo $fcmToken: $e');
+      }
+    }
+  }
+
+  /// Mostra notifica locale
+  void _showLocalNotification(RemoteMessage message) {
+    if (html.Notification.permission == 'granted') {
+      final notification = html.Notification(
+        message.notification?.title ?? 'Notifica Invory',
+        body: message.notification?.body ?? '',
+        icon: '/invory/icons/Icon-192.png',
+        tag: 'invory_notification_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      notification.onClick.listen((event) {
+        if (kDebugMode) {
+          print('Notifica locale cliccata: ${message.notification?.title}');
+        }
+      });
     }
   }
 
@@ -137,141 +316,72 @@ class FCMWebService {
     required int currentQuantity,
     required int threshold,
   }) async {
-    final title = 'Prodotto sotto scorta';
-    final body =
-        'Il prodotto $productName è sotto la soglia (${currentQuantity}/${threshold})';
+    try {
+      if (kDebugMode) {
+        print('🔔 INVIO NOTIFICA SCORTA BASSA per: $productName');
+        print(' Quantità: $currentQuantity, Soglia: $threshold');
+        print('📱 Dispositivo corrente: ${_getDeviceId()}');
+      }
 
-    final data = {
-      'type': 'low_stock',
-      'productName': productName,
-      'currentQuantity': currentQuantity.toString(),
-      'threshold': threshold.toString(),
-    };
+      final title = 'Prodotto sotto scorta';
+      final body =
+          'Il prodotto $productName è sotto la soglia ($currentQuantity/$threshold)';
 
-    await sendWebNotification(title: title, body: body, data: data);
+      final data = {
+        'type': 'low_stock',
+        'productName': productName,
+        'currentQuantity': currentQuantity.toString(),
+        'threshold': threshold.toString(),
+      };
+
+      await sendNotificationToAllDevices(title: title, body: body, data: data);
+
+      if (kDebugMode) {
+        print('✅ NOTIFICA SCORTA BASSA COMPLETATA per: $productName');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'invio della notifica di scorta bassa: $e');
+      }
+    }
   }
 
   /// Invia notifica per prodotto esaurito
   Future<void> sendOutOfStockNotification({required String productName}) async {
-    final title = 'Prodotto esaurito';
-    final body = 'Il prodotto $productName è completamente esaurito';
-
-    final data = {
-      'type': 'out_of_stock',
-      'productName': productName,
-      'currentQuantity': '0',
-    };
-
-    await sendWebNotification(title: title, body: body, data: data);
-  }
-
-  /// Rimuove un token non valido
-  Future<void> removeToken(String token) async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tokens')
-          .doc(token)
-          .delete();
-
       if (kDebugMode) {
-        print('Token web rimosso: ${token.substring(0, 20)}...');
+        print('🔔 Invio notifica prodotto esaurito per: $productName');
       }
+
+      final title = 'Prodotto esaurito';
+      final body = 'Il prodotto $productName è completamente esaurito';
+
+      final data = {
+        'type': 'out_of_stock',
+        'productName': productName,
+        'currentQuantity': '0',
+      };
+
+      await sendNotificationToAllDevices(title: title, body: body, data: data);
     } catch (e) {
       if (kDebugMode) {
-        print('Errore nella rimozione del token web: $e');
+        print('❌ Errore nell\'invio della notifica di esaurimento: $e');
       }
     }
   }
 
-  /// Pulisce i token obsoleti
-  Future<void> cleanupOldTokens() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('tokens')
-              .where('platform', isEqualTo: 'web')
-              .where('lastUsed', isLessThan: Timestamp.fromDate(thirtyDaysAgo))
-              .get();
-
-      for (var doc in querySnapshot.docs) {
-        await doc.reference.delete();
-      }
-
-      if (kDebugMode) {
-        print('Puliti ${querySnapshot.docs.length} token web obsoleti');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Errore nella pulizia dei token web: $e');
-      }
-    }
-  }
-
-  /// Verifica se le notifiche web sono supportate
-  bool isSupported() {
-    return html.Notification.supported;
-  }
-
-  /// Verifica se i permessi sono concessi
+  /// Controlla se ha i permessi
   bool hasPermission() {
     return html.Notification.permission == 'granted';
   }
 
-  /// Richiede i permessi per le notifiche
-  Future<bool> requestPermission() async {
-    try {
-      final permission = await html.Notification.requestPermission();
-      return permission == 'granted';
-    } catch (e) {
-      if (kDebugMode) {
-        print('Errore nella richiesta permessi web: $e');
-      }
-      return false;
-    }
-  }
-
-  /// Verifica se l'app può essere installata
+  /// Controlla se può installare PWA
   bool canInstallPWA() {
-    // Controlla se il prompt è disponibile
-    final hasPrompt = html.window.localStorage['beforeinstallprompt'] == 'true';
-
-    // Controlla se l'app è già installata
-    final isStandalone =
-        html.window.matchMedia('(display-mode: standalone)').matches;
-
-    return hasPrompt && !isStandalone;
+    return html.window.localStorage['beforeinstallprompt'] == 'true';
   }
 
-  /// Mostra il prompt di installazione PWA
+  /// Mostra prompt di installazione PWA
   Future<void> showInstallPrompt() async {
-    try {
-      // Trigger dell'evento beforeinstallprompt
-      html.window.dispatchEvent(html.Event('beforeinstallprompt'));
-
-      if (kDebugMode) {
-        print('Prompt di installazione PWA mostrato');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Errore nel mostrare il prompt PWA: $e');
-      }
-    }
-  }
-
-  /// Verifica se l'app è installata
-  bool isAppInstalled() {
-    return html.window.matchMedia('(display-mode: standalone)').matches;
+    // Implementazione del prompt di installazione PWA
   }
 }

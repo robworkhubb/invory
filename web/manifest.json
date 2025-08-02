@@ -2,12 +2,12 @@
   "name": "Invory - Gestione Magazzino",
   "short_name": "Invory",
   "description": "Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino",
-  "start_url": "/",
+  "start_url": "/invory/",
   "display": "standalone",
   "background_color": "#009688",
   "theme_color": "#009688",
   "orientation": "portrait-primary",
-  "scope": "/",
+  "scope": "/invory/",
   "lang": "it",
   "categories": ["business", "productivity", "utilities"],
   "icons": [
@@ -41,7 +41,7 @@
       "name": "Aggiungi Prodotto",
       "short_name": "Aggiungi",
       "description": "Aggiungi un nuovo prodotto al magazzino",
-      "url": "/?action=add_product",
+      "url": "/invory/?action=add_product",
       "icons": [
         {
           "src": "icons/Icon-192.png",
@@ -53,29 +53,13 @@
       "name": "Visualizza Prodotti",
       "short_name": "Prodotti",
       "description": "Visualizza tutti i prodotti del magazzino",
-      "url": "/?action=products",
+      "url": "/invory/?action=products",
       "icons": [
         {
           "src": "icons/Icon-192.png",
           "sizes": "192x192"
         }
       ]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "screenshot/HomePage.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Homepage di Invory"
-    },
-    {
-      "src": "screenshot/ProdottiPage.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Gestione prodotti"
     }
   ],
   "prefer_related_applications": false,

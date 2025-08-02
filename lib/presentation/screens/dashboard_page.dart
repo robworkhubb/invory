@@ -4,7 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../presentation/providers/product_provider.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({Key? key}) : super(key: key);
+  const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +67,7 @@ class DashboardPage extends StatelessWidget {
 }
 
 class _AppBarTitle extends StatelessWidget {
-  const _AppBarTitle({Key? key}) : super(key: key);
+  const _AppBarTitle();
 
   @override
   Widget build(BuildContext context) {
@@ -91,8 +91,7 @@ class _AppBarTitle extends StatelessWidget {
 
 class _TopProductsChart extends StatelessWidget {
   final List<dynamic> topProducts;
-  const _TopProductsChart({Key? key, required this.topProducts})
-    : super(key: key);
+  const _TopProductsChart({required this.topProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +155,9 @@ class _TopProductsChart extends StatelessWidget {
                                   final idx = value.toInt();
                                   if (idx < topProducts.length) {
                                     String nome = topProducts[idx].nome;
-                                    if (nome.length > 8)
-                                      nome = nome.substring(0, 8) + '…';
+                                    if (nome.length > 8) {
+                                      nome = '${nome.substring(0, 8)}…';
+                                    }
                                     return Transform.rotate(
                                       angle: -0.0, //
                                       child: Padding(
@@ -201,8 +201,7 @@ class _TopProductsChart extends StatelessWidget {
 
 class _CategoryChart extends StatelessWidget {
   final Map<String, int> categoryDist;
-  const _CategoryChart({Key? key, required this.categoryDist})
-    : super(key: key);
+  const _CategoryChart({required this.categoryDist});
 
   @override
   Widget build(BuildContext context) {
@@ -303,10 +302,9 @@ class _MonthlyExpenseChart extends StatelessWidget {
   final Map<String, double> monthlyExpense;
   final List<String> months;
   const _MonthlyExpenseChart({
-    Key? key,
     required this.monthlyExpense,
     required this.months,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -457,5 +455,3 @@ class _MonthlyExpenseChart extends StatelessWidget {
     );
   }
 }
-
-

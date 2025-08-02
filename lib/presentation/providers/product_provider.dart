@@ -7,7 +7,7 @@ import 'dart:async'; // Import per StreamSubscription
 
 class ProductProvider with ChangeNotifier {
   final ProductRepository _productRepository;
-  final NotificationService _notificationService = NotificationService();
+  final INotificationService _notificationService;
   late final CheckStockNotificationsUseCase _checkStockNotificationsUseCase;
 
   List<Product> _prodotti = [];
@@ -23,7 +23,7 @@ class ProductProvider with ChangeNotifier {
   final Set<String> _notifiedProducts = <String>{};
   DateTime? _lastNotificationCheck;
 
-  ProductProvider(this._productRepository) {
+  ProductProvider(this._productRepository, this._notificationService) {
     _checkStockNotificationsUseCase = CheckStockNotificationsUseCase(
       _productRepository,
     );
@@ -222,13 +222,13 @@ class ProductProvider with ChangeNotifier {
       consumati: product.consumati + consumatiDelta,
       ultimaModifica: DateTime.now(),
     );
-    
+
     try {
       await _productRepository.updateProduct(updatedProduct);
-      
+
       // Rimuovi il prodotto dalla lista dei notificati per permettere una nuova notifica
       _notifiedProducts.remove(product.id);
-      
+
       // Forza il controllo delle notifiche quando si scala un prodotto
       await _forceCheckNotifications();
     } catch (e) {
@@ -245,7 +245,7 @@ class ProductProvider with ChangeNotifier {
 
       for (final product in lowStockProducts) {
         currentLowStockIds.add(product.id);
-        
+
         // Invia notifica solo se non è già stata inviata per questo prodotto
         if (!_notifiedProducts.contains(product.id)) {
           if (product.quantita == 0) {
@@ -256,7 +256,7 @@ class ProductProvider with ChangeNotifier {
           _notifiedProducts.add(product.id);
         }
       }
-      
+
       // Rimuovi dai prodotti notificati quelli che non sono più a scorte basse
       _notifiedProducts.removeWhere((id) => !currentLowStockIds.contains(id));
     } catch (e) {

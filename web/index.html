@@ -8,7 +8,7 @@
   <meta name="description" content="Invory - Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="rhttps://fonts.googleapis.com/css?family=Material+Icons">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons">
 
   <!-- PWA meta tags -->
   <meta name="theme-color" content="#009688">
@@ -46,7 +46,7 @@
     const app = initializeApp(firebaseConfig);
     const messaging = getMessaging(app);
 
-    // Request permission and get token
+    // Richiesta permessi e generazione token FCM solo client-side
     async function requestNotificationPermission() {
       try {
         const permission = await Notification.requestPermission();
@@ -55,43 +55,28 @@
             vapidKey: 'BNWjU0ATK4OlVO_n8ybggAsPr8YFclPYrHNMQzyNt4LxIl_QJHrKT9gOdNNAJdDxNV5XMZtsS1WsSccwuFIU-yo'
           });
           console.log('FCM Token:', token);
-          
           // Salva il token nel localStorage per l'app Flutter
           localStorage.setItem('fcm_token', token);
-          
-          // Invia il token al servizio di notifiche
-          if (token) {
-            fetch('http://localhost:3000/save-token', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': '790f63ac0c4d020fe9facf85cbba85cfce14f5e81d5d828e160e3ea61c414ee0'
-              },
-              body: JSON.stringify({
-                token: token,
-                platform: 'web'
-              })
-            }).catch(console.error);
-          }
+          // Nessun invio a backend, la gestione è tutta client-side
         }
       } catch (error) {
         console.error('Error getting notification permission:', error);
       }
     }
 
-    // Handle foreground messages
+    // Gestione notifiche in foreground (web native)
     onMessage(messaging, (payload) => {
       console.log('Message received:', payload);
       // Mostra notifica locale
       if (Notification.permission === 'granted') {
         new Notification(payload.notification.title, {
           body: payload.notification.body,
-          icon: '/icons/Icon-192.png'
+          icon: '/invory/icons/Icon-192.png'
         });
       }
     });
 
-    // Request permission on page load
+    // Richiedi permessi all'avvio
     window.addEventListener('load', requestNotificationPermission);
   </script>
 
@@ -102,27 +87,20 @@
     window.addEventListener('beforeinstallprompt', (e) => {
       // Previeni il prompt automatico
       e.preventDefault();
-      
       // Salva l'evento per usarlo successivamente
       deferredPrompt = e;
-      
       // Marca che il prompt è disponibile
       localStorage.setItem('beforeinstallprompt', 'true');
-      
       console.log('PWA install prompt disponibile');
-      
       // Non mostrare automaticamente, lascia che l'utente lo richieda
     });
-    
     // Gestisce l'evento appinstalled
     window.addEventListener('appinstalled', (evt) => {
       // Pulisci il localStorage quando l'app è installata
       localStorage.removeItem('beforeinstallprompt');
       deferredPrompt = null;
-      
       console.log('App installata con successo!');
     });
-    
     // Controlla se l'app è già installata al caricamento
     window.addEventListener('load', () => {
       if (window.matchMedia('(display-mode: standalone)').matches) {
@@ -132,7 +110,6 @@
         console.log('App già installata');
       }
     });
-    
     // Funzione per mostrare il prompt manualmente
     window.showInstallPrompt = function() {
       if (deferredPrompt) {

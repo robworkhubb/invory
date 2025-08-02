@@ -9,7 +9,7 @@ import '../widgets/product_card.dart';
 import 'addproductform.dart';
 
 class ProdottiPage extends StatelessWidget {
-  const ProdottiPage({Key? key}) : super(key: key);
+  const ProdottiPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +94,7 @@ void _showProductDialog(BuildContext context, {Product? prodotto}) {
 
 class _AppBarTitle extends StatelessWidget {
   final String dataOggi;
-  const _AppBarTitle({Key? key, required this.dataOggi}) : super(key: key);
+  const _AppBarTitle({required this.dataOggi});
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -129,7 +129,7 @@ class _AppBarTitle extends StatelessWidget {
 }
 
 class _FilterControls extends StatelessWidget {
-  const _FilterControls({Key? key}) : super(key: key);
+  const _FilterControls();
   @override
   Widget build(BuildContext context) {
     // Usa Consumer per ricostruire solo i controlli
@@ -236,7 +236,7 @@ class _FilterControls extends StatelessWidget {
 }
 
 class _ProductList extends StatelessWidget {
-  const _ProductList({Key? key}) : super(key: key);
+  const _ProductList();
   @override
   Widget build(BuildContext context) {
     // Usa Consumer per ricostruire solo la lista
@@ -303,7 +303,7 @@ class _ProductList extends StatelessWidget {
 
 class _AddProductFab extends StatelessWidget {
   final VoidCallback onPressed;
-  const _AddProductFab({Key? key, required this.onPressed}) : super(key: key);
+  const _AddProductFab({required this.onPressed});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -313,8 +313,8 @@ class _AddProductFab extends StatelessWidget {
         backgroundColor: Colors.teal,
         elevation: 6,
         shape: const CircleBorder(),
-        child: const Icon(Icons.add, size: 32, color: Colors.white),
         tooltip: 'Aggiungi prodotto',
+        child: const Icon(Icons.add, size: 32, color: Colors.white),
       ),
     );
   }

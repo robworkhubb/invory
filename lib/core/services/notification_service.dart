@@ -22,6 +22,7 @@ abstract class INotificationService {
   Future<bool> arePermissionsGranted();
   Future<bool> canInstallPWA();
   Future<void> showInstallPrompt();
+  Future<void> savePendingToken();
 }
 
 class NotificationService implements INotificationService {
@@ -94,6 +95,30 @@ class NotificationService implements INotificationService {
 
         if (_permissionsGranted) {
           debugPrint('Permessi notifiche web concessi');
+
+          // Genera un token univoco per il dispositivo web
+          final deviceId =
+              html.window.localStorage['deviceId'] ??
+              DateTime.now().millisecondsSinceEpoch.toString();
+          html.window.localStorage['deviceId'] = deviceId;
+
+          // Salva il token
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            await _webService.saveToken(deviceId);
+            debugPrint('Token web salvato per il dispositivo');
+          } else {
+            _pendingToken = deviceId;
+            debugPrint('Token web in attesa di autenticazione');
+          }
+
+          // Configura il listener per le notifiche in tempo reale
+          _setupRealtimeNotifications();
+          debugPrint('Listener notifiche in tempo reale configurato');
+
+          // AGGIUNGI: Configura il listener per le notifiche in background
+          _setupBackgroundNotifications();
+          debugPrint('Listener notifiche in background configurato');
         } else {
           debugPrint('Permessi notifiche web negati');
         }
@@ -167,19 +192,26 @@ class NotificationService implements INotificationService {
         return;
       }
 
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tokens')
-          .doc(token)
-          .set({
-            'token': token,
-            'createdAt': FieldValue.serverTimestamp(),
-            'lastUsed': FieldValue.serverTimestamp(),
-            'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
-          }, SetOptions(merge: true));
+      if (kIsWeb) {
+        // Per il web, usa il servizio web
+        await _webService.saveToken(token);
+      } else {
+        // Per mobile, salva direttamente
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('tokens')
+            .doc(token)
+            .set({
+              'token': token,
+              'createdAt': FieldValue.serverTimestamp(),
+              'lastUsed': FieldValue.serverTimestamp(),
+              'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+              'isActive': true,
+            }, SetOptions(merge: true));
 
-      debugPrint('Token FCM salvato con successo');
+        debugPrint('Token FCM salvato con successo');
+      }
     } catch (e) {
       debugPrint('Errore nel salvataggio del token FCM: $e');
     }
@@ -232,6 +264,7 @@ class NotificationService implements INotificationService {
   String? _pendingToken;
 
   // Metodo per salvare il token pendente dopo l'autenticazione
+  @override
   Future<void> savePendingToken() async {
     if (_pendingToken != null) {
       debugPrint('Salvando token FCM pendente dopo autenticazione...');
@@ -264,14 +297,13 @@ class NotificationService implements INotificationService {
     try {
       debugPrint('Inizializzazione web...');
 
+      // Registra il service worker per le notifiche
       if (html.window.navigator.serviceWorker != null) {
         debugPrint('Registrazione service worker...');
-
         try {
           final registration = await html.window.navigator.serviceWorker
               ?.register('/firebase-messaging-sw.js');
           debugPrint('Service worker registrato: ${registration?.scope}');
-
           if (registration != null) {
             await _waitForServiceWorkerActivation(registration);
           }
@@ -408,16 +440,38 @@ class NotificationService implements INotificationService {
 
   @override
   Future<void> showLowStockNotification(Product product) async {
-    if (!_permissionsGranted) return;
+    if (kDebugMode) {
+      print(
+        '🔔 NotificationService: showLowStockNotification chiamato per ${product.nome}',
+      );
+      print('📊 Permessi concessi: $_permissionsGranted');
+      print('🌐 È web: $kIsWeb');
+    }
+
+    if (!_permissionsGranted) {
+      if (kDebugMode) {
+        print('❌ Permessi non concessi, notifica non inviata');
+      }
+      return;
+    }
 
     // Usa il servizio appropriato per la piattaforma
     if (kIsWeb) {
+      if (kDebugMode) {
+        print('🌐 Invio notifica web per: ${product.nome}');
+      }
       await _webService.sendLowStockNotification(
         productName: product.nome,
         currentQuantity: product.quantita,
         threshold: product.soglia,
       );
+      if (kDebugMode) {
+        print('✅ Notifica web inviata per: ${product.nome}');
+      }
     } else {
+      if (kDebugMode) {
+        print('📱 Invio notifica mobile per: ${product.nome}');
+      }
       // Invia notifica FCM per mobile
       await _fcmService.sendLowStockNotification(
         productName: product.nome,
@@ -434,17 +488,42 @@ class NotificationService implements INotificationService {
         product.hashCode,
         const Color(0xFFFF9800),
       );
+      if (kDebugMode) {
+        print('✅ Notifica mobile inviata per: ${product.nome}');
+      }
     }
   }
 
   @override
   Future<void> showOutOfStockNotification(Product product) async {
-    if (!_permissionsGranted) return;
+    if (kDebugMode) {
+      print(
+        '🔔 NotificationService: showOutOfStockNotification chiamato per ${product.nome}',
+      );
+      print('📊 Permessi concessi: $_permissionsGranted');
+      print('🌐 È web: $kIsWeb');
+    }
+
+    if (!_permissionsGranted) {
+      if (kDebugMode) {
+        print('❌ Permessi non concessi, notifica non inviata');
+      }
+      return;
+    }
 
     // Usa il servizio appropriato per la piattaforma
     if (kIsWeb) {
+      if (kDebugMode) {
+        print('🌐 Invio notifica esaurimento web per: ${product.nome}');
+      }
       await _webService.sendOutOfStockNotification(productName: product.nome);
+      if (kDebugMode) {
+        print('✅ Notifica esaurimento web inviata per: ${product.nome}');
+      }
     } else {
+      if (kDebugMode) {
+        print('📱 Invio notifica esaurimento mobile per: ${product.nome}');
+      }
       // Invia notifica FCM per mobile
       await _fcmService.sendNotificationToUser(
         title: 'Prodotto esaurito',
@@ -465,26 +544,9 @@ class NotificationService implements INotificationService {
         product.hashCode + 1000,
         const Color(0xFFF44336),
       );
-    }
-  }
-
-  Future<void> _showWebNotification(
-    String title,
-    String body,
-    String tag,
-    int id,
-  ) async {
-    try {
-      if (html.Notification.permission == 'granted') {
-        html.Notification(
-          title,
-          body: body,
-          icon: '/icons/Icon-192.png',
-          tag: tag,
-        );
+      if (kDebugMode) {
+        print('✅ Notifica esaurimento mobile inviata per: ${product.nome}');
       }
-    } catch (e) {
-      debugPrint('Errore nella notifica web: $e');
     }
   }
 
@@ -555,6 +617,138 @@ class NotificationService implements INotificationService {
       }
     } catch (e) {
       debugPrint('Errore nella cancellazione di tutte le notifiche: $e');
+    }
+  }
+
+  void _setupRealtimeNotifications() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      debugPrint(
+        '🔔 Configurazione listener notifiche in tempo reale per utente: ${user.uid}',
+      );
+
+      // Set per tenere traccia delle notifiche già mostrate
+      final Set<String> shownNotifications = <String>{};
+      final currentDeviceId = html.window.localStorage['deviceId'] ?? '';
+
+      _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('notifications')
+          .where('read', isEqualTo: false)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              debugPrint(
+                '📨 Ricevute ${snapshot.docChanges.length} nuove notifiche',
+              );
+
+              for (final change in snapshot.docChanges) {
+                if (change.type == DocumentChangeType.added) {
+                  final data = change.doc.data();
+                  if (data != null) {
+                    final notificationId = data['notificationId'] ?? '';
+                    final targetDeviceId = data['targetDeviceId'] ?? '';
+                    final sourceDeviceId = data['sourceDeviceId'] ?? '';
+
+                    // CONTROLLO 1: Verifica se la notifica è per questo dispositivo
+                    if (targetDeviceId != currentDeviceId) {
+                      debugPrint(
+                        '⚠️ Notifica non per questo dispositivo, salto',
+                      );
+                      continue;
+                    }
+
+                    // CONTROLLO 2: Verifica se la notifica viene dal dispositivo corrente
+                    if (sourceDeviceId == currentDeviceId) {
+                      debugPrint('⚠️ Notifica dal dispositivo corrente, salto');
+                      continue;
+                    }
+
+                    // CONTROLLO 3: Verifica se la notifica è già stata mostrata
+                    if (shownNotifications.contains(notificationId)) {
+                      debugPrint(
+                        '⚠️ Notifica già mostrata, salto: ${data['title']}',
+                      );
+                      continue;
+                    }
+
+                    debugPrint(
+                      ' Mostrando notifica: ${data['title']} - ${data['body']}',
+                    );
+
+                    _showLocalWebNotification(
+                      data['title'] ?? '',
+                      data['body'] ?? '',
+                    );
+
+                    // Aggiungi alla lista delle notifiche mostrate
+                    shownNotifications.add(notificationId);
+
+                    // Marca come letta
+                    change.doc.reference.update({'read': true});
+                    debugPrint('✅ Notifica marcata come letta');
+                  }
+                }
+              }
+            },
+            onError: (error) {
+              debugPrint('❌ Errore nel listener notifiche: $error');
+            },
+          );
+    } else {
+      debugPrint(
+        '❌ Utente non autenticato, impossibile configurare listener notifiche',
+      );
+    }
+  }
+
+  void _setupBackgroundNotifications() {
+    // Gestisci le notifiche quando l'app è in background
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint(
+        '📨 Notifica ricevuta in background: ${message.notification?.title}',
+      );
+
+      if (message.notification != null) {
+        _showLocalWebNotification(
+          message.notification!.title ?? '',
+          message.notification!.body ?? '',
+        );
+      }
+    });
+  }
+
+  void _showLocalWebNotification(String title, String body) {
+    try {
+      if (html.Notification.permission == 'granted') {
+        debugPrint('👀 Mostrando notifica web: $title');
+
+        final notification = html.Notification(
+          title,
+          body: body,
+          icon: '/invory/icons/Icon-192.png',
+          tag: 'invory_notification_${DateTime.now().millisecondsSinceEpoch}',
+        );
+
+        notification.onClick.listen((event) {
+          if (kDebugMode) {
+            print('👆 Notifica locale cliccata: $title');
+          }
+        });
+
+        notification.onShow.listen((event) {
+          debugPrint('✅ Notifica web mostrata con successo: $title');
+        });
+
+        notification.onError.listen((error) {
+          debugPrint('❌ Errore nella notifica web: $error');
+        });
+      } else {
+        debugPrint('❌ Permessi notifiche web non concessi');
+      }
+    } catch (e) {
+      debugPrint('❌ Errore nel mostrare notifica web: $e');
     }
   }
 }

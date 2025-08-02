@@ -33,7 +33,10 @@ Future<void> init() async {
 
   // Services
   sl.registerLazySingleton<INotificationService>(() => NotificationService());
-  sl.registerLazySingleton<FCMNotificationService>(() => FCMNotificationService());
+  sl.registerLazySingleton<NotificationService>(() => NotificationService());
+  sl.registerLazySingleton<FCMNotificationService>(
+    () => FCMNotificationService(),
+  );
 
   // Use cases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -58,7 +61,7 @@ Future<void> init() async {
   );
 
   // Providers
-  sl.registerFactory(() => AuthProvider(sl()));
-  sl.registerFactory(() => ProductProvider(sl()));
+  sl.registerFactory(() => AuthProvider(sl(), sl()));
+  sl.registerFactory(() => ProductProvider(sl(), sl()));
   sl.registerFactory(() => SupplierProvider(sl()));
 }

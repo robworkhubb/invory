@@ -1,5 +1,3 @@
-// ignore_for_file: unused_import, unused_local_variable, unnecessary_cast, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -11,29 +9,23 @@ import '../widgets/info_box.dart';
 import '../widgets/product_card.dart';
 import '../widgets/auto_install_prompt.dart';
 import 'login_page.dart';
-import '../../utils/web_notification_test.dart';
+import '../../core/services/notification_service.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({Key? key}) : super(key: key);
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
-  void _showNotificationTestDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Test Notifiche'),
-            content: const SizedBox(
-              width: double.maxFinite,
-              child: _NotificationTestWidget(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Chiudi'),
-              ),
-            ],
-          ),
-    );
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Inizializza notifiche e salva il token FCM se necessario
+    NotificationService().initialize().then((_) {
+      NotificationService().savePendingToken();
+    });
   }
 
   @override
@@ -48,11 +40,6 @@ class HomePage extends StatelessWidget {
         title: _AppBarTitle(dataOggi: dataOggi),
         toolbarHeight: 70,
         actions: [
-          if (kDebugMode)
-            IconButton(
-              icon: const Icon(Icons.notifications, color: Color(0xFF009688)),
-              onPressed: () => _showNotificationTestDialog(context),
-            ),
           IconButton(
             icon: const Icon(Icons.logout, color: Color(0xFF009688)),
             onPressed: () async {
@@ -83,109 +70,14 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<ProductProvider>(
-        builder: (context, provider, child) {
-          if (provider.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return child!;
-        },
-        child: const _HomePageContent(),
-      ),
+      body: const _HomePageContent(),
     );
-  }
-}
-
-class _NotificationTestWidget extends StatelessWidget {
-  const _NotificationTestWidget({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Testa le notifiche del sistema',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        if (kIsWeb) ...[
-          ElevatedButton.icon(
-            onPressed: () => WebNotificationTest.runAllWebTests(),
-            icon: const Icon(Icons.web, size: 16),
-            label: const Text('Test Web Completo'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009688),
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: () => WebNotificationTest.testWebPermissions(),
-            icon: const Icon(Icons.security, size: 16),
-            label: const Text('Test Permessi Web'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009688),
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: () => WebNotificationTest.testWebNotifications(),
-            icon: const Icon(Icons.notifications, size: 16),
-            label: const Text('Test Notifiche Web'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009688),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ] else ...[
-          ElevatedButton.icon(
-            onPressed: () => _testMobileNotifications(context),
-            icon: const Icon(Icons.phone_android, size: 16),
-            label: const Text('Test Notifiche Mobile'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009688),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-        const SizedBox(height: 16),
-        const Text('Note:', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        const Text(
-          '• Le notifiche di test vengono inviate solo in modalità debug',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const Text(
-          '• Verifica i permessi delle notifiche nelle impostazioni',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const Text(
-          '• Controlla la console per i log dettagliati',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-      ],
-    );
-  }
-
-  void _testMobileNotifications(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Test notifiche mobile - Controlla la console per i log'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-
-    // Qui puoi aggiungere test specifici per mobile se necessario
-    debugPrint('🧪 Test notifiche mobile avviato');
   }
 }
 
 class _AppBarTitle extends StatelessWidget {
   final String dataOggi;
-  const _AppBarTitle({Key? key, required this.dataOggi}) : super(key: key);
+  const _AppBarTitle({required this.dataOggi});
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +109,7 @@ class _AppBarTitle extends StatelessWidget {
 }
 
 class _HomePageContent extends StatelessWidget {
-  const _HomePageContent({Key? key}) : super(key: key);
+  const _HomePageContent();
 
   @override
   Widget build(BuildContext context) {
@@ -327,8 +219,7 @@ class _HomePageContent extends StatelessWidget {
 
 class _CriticalProductsList extends StatelessWidget {
   final List<Product> critici;
-  const _CriticalProductsList({Key? key, required this.critici})
-    : super(key: key);
+  const _CriticalProductsList({required this.critici});
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +243,7 @@ class _CriticalProductsList extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({Key? key}) : super(key: key);
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
