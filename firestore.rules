@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Regole per i token FCM dell'utente
-    match /users/{userId}/fcmTokens/{tokenId} {
+    match /users/{userId}/tokens/{tokenId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     

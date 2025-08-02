@@ -13,11 +13,13 @@ import '../../domain/usecases/product/add_product_usecase.dart';
 import '../../domain/usecases/product/update_product_usecase.dart';
 import '../../domain/usecases/product/delete_product_usecase.dart';
 import '../../domain/usecases/product/check_stock_notifications_usecase.dart';
+import '../../domain/usecases/product/check_low_stock_notification_usecase.dart';
 import '../../domain/usecases/supplier/get_suppliers_usecase.dart';
 import '../../domain/usecases/supplier/add_supplier_usecase.dart';
 import '../../domain/usecases/supplier/update_supplier_usecase.dart';
 import '../../domain/usecases/supplier/delete_supplier_usecase.dart';
 import '../services/notification_service.dart';
+import '../services/fcm_notification_service.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/product_provider.dart';
 import '../../presentation/providers/supplier_provider.dart';
@@ -29,17 +31,9 @@ Future<void> init() async {
   sl.registerLazySingleton<FirebaseAuthService>(() => FirebaseAuthService());
   sl.registerLazySingleton<FirestoreService>(() => FirestoreService());
 
-  // Repositories
-  sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
-  sl.registerLazySingleton<ProductRepository>(
-    () => ProductRepositoryImpl(sl()),
-  );
-  sl.registerLazySingleton<SupplierRepository>(
-    () => SupplierRepositoryImpl(sl()),
-  );
-
   // Services
   sl.registerLazySingleton<INotificationService>(() => NotificationService());
+  sl.registerLazySingleton<FCMNotificationService>(() => FCMNotificationService());
 
   // Use cases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -48,10 +42,20 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UpdateProductUseCase(sl()));
   sl.registerLazySingleton(() => DeleteProductUseCase(sl()));
   sl.registerLazySingleton(() => CheckStockNotificationsUseCase(sl()));
+  sl.registerLazySingleton(() => CheckLowStockNotificationUseCase(sl()));
   sl.registerLazySingleton(() => GetSuppliersUseCase(sl()));
   sl.registerLazySingleton(() => AddSupplierUseCase(sl()));
   sl.registerLazySingleton(() => UpdateSupplierUseCase(sl()));
   sl.registerLazySingleton(() => DeleteSupplierUseCase(sl()));
+
+  // Repositories
+  sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
+  sl.registerLazySingleton<ProductRepository>(
+    () => ProductRepositoryImpl(sl(), sl()),
+  );
+  sl.registerLazySingleton<SupplierRepository>(
+    () => SupplierRepositoryImpl(sl()),
+  );
 
   // Providers
   sl.registerFactory(() => AuthProvider(sl()));

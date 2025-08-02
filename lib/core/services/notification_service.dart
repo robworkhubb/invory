@@ -1,12 +1,15 @@
 import 'dart:html' as html;
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:invory/core/services/fcm_http_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../domain/entities/product.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'fcm_notification_service.dart';
+import 'fcm_web_service.dart';
 
 abstract class INotificationService {
   Future<void> initialize();
@@ -29,10 +32,13 @@ class NotificationService implements INotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FCMHttpService _fcmService = FCMHttpService();
+  final FCMNotificationService _fcmService = FCMNotificationService();
+  final FCMWebService _webService = FCMWebService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _isInitialized = false;
   bool _permissionsGranted = false;
+
   @override
   Future<bool> isSupported() async {
     return true; // Supporto per mobile e web
@@ -46,8 +52,7 @@ class NotificationService implements INotificationService {
   @override
   Future<bool> canInstallPWA() async {
     if (kIsWeb) {
-      // Controlla se l'app può essere installata
-      return html.window.localStorage['beforeinstallprompt'] == 'true';
+      return _webService.canInstallPWA();
     }
     return false;
   }
@@ -55,20 +60,7 @@ class NotificationService implements INotificationService {
   @override
   Future<void> showInstallPrompt() async {
     if (kIsWeb) {
-      try {
-        // Trigger installazione PWA usando l'evento salvato
-        final beforeInstallPrompt =
-            html.window.localStorage['beforeinstallprompt'];
-        if (beforeInstallPrompt == 'true') {
-          // Dispatch dell'evento per mostrare il prompt nativo di Chrome
-          html.window.dispatchEvent(html.Event('beforeinstallprompt'));
-
-          // Pulisci il localStorage dopo aver mostrato il prompt
-          html.window.localStorage.remove('beforeinstallprompt');
-        }
-      } catch (e) {
-        print('Errore nel mostrare il prompt di installazione: $e');
-      }
+      await _webService.showInstallPrompt();
     }
   }
 
@@ -94,43 +86,48 @@ class NotificationService implements INotificationService {
 
   Future<void> _initializeFCM() async {
     try {
-      debugPrint('Inizializzazione FCM...');
-      
-      // Richiedi permesso per le notifiche
-      final settings = await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      if (kIsWeb) {
+        // Per il web, usa il servizio web
+        debugPrint('Inizializzazione servizio web...');
+        await _webService.initialize();
+        _permissionsGranted = _webService.hasPermission();
 
-      debugPrint('Stato autorizzazione FCM: ${settings.authorizationStatus}');
+        if (_permissionsGranted) {
+          debugPrint('Permessi notifiche web concessi');
+        } else {
+          debugPrint('Permessi notifiche web negati');
+        }
+      } else {
+        // Per mobile, usa FCM
+        debugPrint('Inizializzazione FCM...');
 
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        _permissionsGranted = true;
-        debugPrint('Permessi FCM concessi');
+        final settings = await _messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
-        // Ottieni e salva il token FCM con retry
-        await _getAndSaveTokenWithRetry();
+        debugPrint('Stato autorizzazione FCM: ${settings.authorizationStatus}');
 
-        // Ascolta i cambiamenti del token
-        _messaging.onTokenRefresh.listen((token) {
-          debugPrint('Token FCM aggiornato: ${token.substring(0, 20)}...');
-          _fcmService.saveToken(token);
-        });
+        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+          _permissionsGranted = true;
+          debugPrint('Permessi FCM concessi');
 
-        // Gestisci le notifiche in foreground
-        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          debugPrint('Notifica FCM ricevuta in foreground: ${message.notification?.title}');
-          if (message.notification != null) {
-            if (kIsWeb) {
-              _showWebNotification(
-                message.notification!.title ?? '',
-                message.notification!.body ?? '',
-                message.data['type'] ?? 'default',
-                message.hashCode,
-              );
-            } else {
-              // Crea un Product "placeholder" minimale se necessario, oppure gestisci il caso senza Product
+          // Ottieni e salva il token FCM con retry
+          await _getAndSaveTokenWithRetry();
+
+          // Ascolta i cambiamenti del token
+          _messaging.onTokenRefresh.listen((token) {
+            debugPrint('Token FCM aggiornato: ${token.substring(0, 20)}...');
+            _saveTokenToFirestore(token);
+          });
+
+          // Gestisci le notifiche in foreground
+          FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+            debugPrint(
+              'Notifica FCM ricevuta in foreground: ${message.notification?.title}',
+            );
+            if (message.notification != null) {
               final product =
                   _extractProductFromMessage(message) ?? Product.empty();
               _showMobileNotification(
@@ -146,20 +143,45 @@ class NotificationService implements INotificationService {
                     : const Color(0xFFFF9800),
               );
             }
-          }
-        });
+          });
 
-        // Gestisci il click sulla notifica quando l'app è in background
-        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-          // Implementa la navigazione se necessario
-          debugPrint('Notifica aperta: ${message.data}');
-        });
-      } else {
-        debugPrint('Permessi FCM negati: ${settings.authorizationStatus}');
+          // Gestisci il click sulla notifica quando l'app è in background
+          FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+            debugPrint('Notifica aperta: ${message.data}');
+          });
+        } else {
+          debugPrint('Permessi FCM negati: ${settings.authorizationStatus}');
+        }
       }
     } catch (e) {
-      debugPrint('Errore nell\'inizializzazione FCM: $e');
-      // Non bloccare l'inizializzazione se FCM fallisce
+      debugPrint('Errore nell\'inizializzazione: $e');
+    }
+  }
+
+  // Salva il token FCM in Firestore
+  Future<void> _saveTokenToFirestore(String token) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('Utente non autenticato, impossibile salvare il token FCM');
+        return;
+      }
+
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('tokens')
+          .doc(token)
+          .set({
+            'token': token,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastUsed': FieldValue.serverTimestamp(),
+            'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+          }, SetOptions(merge: true));
+
+      debugPrint('Token FCM salvato con successo');
+    } catch (e) {
+      debugPrint('Errore nel salvataggio del token FCM: $e');
     }
   }
 
@@ -167,24 +189,27 @@ class NotificationService implements INotificationService {
   Future<void> _getAndSaveTokenWithRetry() async {
     int attempts = 0;
     const maxAttempts = 3;
-    
+
     while (attempts < maxAttempts) {
       try {
         attempts++;
-        debugPrint('Tentativo $attempts/$maxAttempts per ottenere token FCM...');
-        
+        debugPrint(
+          'Tentativo $attempts/$maxAttempts per ottenere token FCM...',
+        );
+
         final token = await _messaging.getToken();
         if (token != null) {
           debugPrint('Token FCM ottenuto: ${token.substring(0, 20)}...');
-          
+
           // Salva il token solo se l'utente è autenticato
           final user = FirebaseAuth.instance.currentUser;
           if (user != null) {
-            await _fcmService.saveToken(token);
+            await _saveTokenToFirestore(token);
             debugPrint('Token FCM salvato con successo');
           } else {
-            debugPrint('Utente non autenticato, token FCM ottenuto ma non salvato');
-            // Salva il token in memoria per salvarlo dopo l'autenticazione
+            debugPrint(
+              'Utente non autenticato, token FCM ottenuto ma non salvato',
+            );
             _pendingToken = token;
           }
           return;
@@ -194,13 +219,12 @@ class NotificationService implements INotificationService {
       } catch (e) {
         debugPrint('Errore nel tentativo $attempts: $e');
       }
-      
-      // Aspetta prima del prossimo tentativo
+
       if (attempts < maxAttempts) {
-        await Future.delayed(Duration(seconds: attempts * 2)); // Backoff esponenziale
+        await Future.delayed(Duration(seconds: attempts * 2));
       }
     }
-    
+
     debugPrint('Impossibile ottenere token FCM dopo $maxAttempts tentativi');
   }
 
@@ -211,7 +235,7 @@ class NotificationService implements INotificationService {
   Future<void> savePendingToken() async {
     if (_pendingToken != null) {
       debugPrint('Salvando token FCM pendente dopo autenticazione...');
-      await _fcmService.saveToken(_pendingToken!);
+      await _saveTokenToFirestore(_pendingToken!);
       _pendingToken = null;
       debugPrint('Token FCM pendente salvato con successo');
     }
@@ -224,7 +248,7 @@ class NotificationService implements INotificationService {
       final token = await _messaging.getToken();
       if (token != null) {
         debugPrint('Nuovo token FCM ottenuto: ${token.substring(0, 20)}...');
-        await _fcmService.saveToken(token);
+        await _saveTokenToFirestore(token);
         return token;
       } else {
         debugPrint('Errore: Nuovo token FCM nullo');
@@ -240,39 +264,24 @@ class NotificationService implements INotificationService {
     try {
       debugPrint('Inizializzazione web...');
 
-      // Registra il service worker per le notifiche PWA
       if (html.window.navigator.serviceWorker != null) {
         debugPrint('Registrazione service worker...');
 
         try {
           final registration = await html.window.navigator.serviceWorker
-              ?.register('/sw.js');
+              ?.register('/firebase-messaging-sw.js');
           debugPrint('Service worker registrato: ${registration?.scope}');
 
-          // Aspetta che il service worker sia attivo
           if (registration != null) {
             await _waitForServiceWorkerActivation(registration);
           }
         } catch (e) {
           debugPrint('Errore nella registrazione service worker: $e');
-          // Prova a registrare il service worker di Firebase
-          try {
-            await html.window.navigator.serviceWorker?.register(
-              '/firebase-messaging-sw.js',
-            );
-            debugPrint('Firebase service worker registrato come fallback');
-          } catch (firebaseError) {
-            debugPrint(
-              'Errore anche nel fallback Firebase service worker: $firebaseError',
-            );
-          }
         }
       } else {
         debugPrint('Service Worker non supportato');
       }
 
-      // Controlla se l'app può essere installata
-      // Listener per l'evento beforeinstallprompt
       html.window.addEventListener('beforeinstallprompt', (event) {
         debugPrint('Evento beforeinstallprompt catturato');
         html.window.localStorage['beforeinstallprompt'] = 'true';
@@ -284,7 +293,6 @@ class NotificationService implements INotificationService {
     }
   }
 
-  // Aspetta che il service worker sia attivo
   Future<void> _waitForServiceWorkerActivation(
     html.ServiceWorkerRegistration registration,
   ) async {
@@ -295,9 +303,8 @@ class NotificationService implements INotificationService {
 
     debugPrint('In attesa dell\'attivazione del service worker...');
 
-    // Aspetta fino a 10 secondi per l'attivazione
     int attempts = 0;
-    const maxAttempts = 20; // 20 tentativi * 500ms = 10 secondi
+    const maxAttempts = 20;
 
     while (registration.active == null && attempts < maxAttempts) {
       await Future.delayed(const Duration(milliseconds: 500));
@@ -356,13 +363,12 @@ class NotificationService implements INotificationService {
         if (permission?.state == 'granted') {
           _permissionsGranted = true;
         } else if (permission?.state == 'prompt') {
-          // Richiedi permesso
           final result = await html.Notification.requestPermission();
           _permissionsGranted = result == 'granted';
         }
       }
     } catch (e) {
-      print('Errore nella richiesta permessi web: $e');
+      debugPrint('Errore nella richiesta permessi web: $e');
     }
   }
 
@@ -372,15 +378,14 @@ class NotificationService implements INotificationService {
         _permissionsGranted = true;
       }
     } catch (e) {
-      print('Errore nella richiesta permessi: $e');
+      debugPrint('Errore nella richiesta permessi: $e');
     }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    print('Notifica cliccata: ${response.payload}');
+    debugPrint('Notifica cliccata: ${response.payload}');
   }
 
-  // Estrae le informazioni del prodotto dal messaggio FCM
   Product? _extractProductFromMessage(RemoteMessage message) {
     try {
       final data = message.data;
@@ -405,25 +410,29 @@ class NotificationService implements INotificationService {
   Future<void> showLowStockNotification(Product product) async {
     if (!_permissionsGranted) return;
 
-    // Invia notifica FCM
-    await _fcmService.checkAndNotifyLowStock(product);
-
-    // Mostra anche notifica locale se l'app è in foreground
+    // Usa il servizio appropriato per la piattaforma
     if (kIsWeb) {
-      await _showWebNotification(
-        'Scorte Basse: ${product.nome}',
-        'Quantità: ${product.quantita} (Soglia: ${product.soglia})',
-        'low_stock',
-        product.hashCode,
+      await _webService.sendLowStockNotification(
+        productName: product.nome,
+        currentQuantity: product.quantita,
+        threshold: product.soglia,
       );
     } else {
+      // Invia notifica FCM per mobile
+      await _fcmService.sendLowStockNotification(
+        productName: product.nome,
+        currentQuantity: product.quantita,
+        threshold: product.soglia,
+      );
+
+      // Mostra anche notifica locale
       await _showMobileNotification(
         product,
         'Scorte Basse: ${product.nome}',
         'Quantità: ${product.quantita} (Soglia: ${product.soglia})',
         'low_stock_channel',
         product.hashCode,
-        const Color(0xFFFF9800), // Orange
+        const Color(0xFFFF9800),
       );
     }
   }
@@ -432,25 +441,29 @@ class NotificationService implements INotificationService {
   Future<void> showOutOfStockNotification(Product product) async {
     if (!_permissionsGranted) return;
 
-    // Invia notifica FCM
-    await _fcmService.checkAndNotifyLowStock(product);
-
-    // Mostra anche notifica locale se l'app è in foreground
+    // Usa il servizio appropriato per la piattaforma
     if (kIsWeb) {
-      await _showWebNotification(
-        'Prodotto Esaurito: ${product.nome}',
-        'Il prodotto è completamente esaurito!',
-        'out_of_stock',
-        product.hashCode + 1000,
-      );
+      await _webService.sendOutOfStockNotification(productName: product.nome);
     } else {
+      // Invia notifica FCM per mobile
+      await _fcmService.sendNotificationToUser(
+        title: 'Prodotto esaurito',
+        body: 'Il prodotto ${product.nome} è completamente esaurito',
+        data: {
+          'type': 'out_of_stock',
+          'productName': product.nome,
+          'currentQuantity': '0',
+        },
+      );
+
+      // Mostra anche notifica locale
       await _showMobileNotification(
         product,
         'Prodotto Esaurito: ${product.nome}',
         'Il prodotto è completamente esaurito!',
         'out_of_stock_channel',
         product.hashCode + 1000,
-        const Color(0xFFF44336), // Red
+        const Color(0xFFF44336),
       );
     }
   }
@@ -471,7 +484,7 @@ class NotificationService implements INotificationService {
         );
       }
     } catch (e) {
-      print('Errore nella notifica web: $e');
+      debugPrint('Errore nella notifica web: $e');
     }
   }
 
@@ -519,7 +532,7 @@ class NotificationService implements INotificationService {
         payload: 'product_${product.id}',
       );
     } catch (e) {
-      print('Errore nella notifica mobile: $e');
+      debugPrint('Errore nella notifica mobile: $e');
     }
   }
 
@@ -530,7 +543,7 @@ class NotificationService implements INotificationService {
         await _notifications.cancel(id);
       }
     } catch (e) {
-      print('Errore nella cancellazione notifica: $e');
+      debugPrint('Errore nella cancellazione notifica: $e');
     }
   }
 
@@ -541,7 +554,7 @@ class NotificationService implements INotificationService {
         await _notifications.cancelAll();
       }
     } catch (e) {
-      print('Errore nella cancellazione di tutte le notifiche: $e');
+      debugPrint('Errore nella cancellazione di tutte le notifiche: $e');
     }
   }
 }

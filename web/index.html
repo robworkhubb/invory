@@ -109,17 +109,9 @@
       // Marca che il prompt è disponibile
       localStorage.setItem('beforeinstallprompt', 'true');
       
-      // Mostra automaticamente il banner di installazione dopo 3 secondi
-      setTimeout(() => {
-        if (localStorage.getItem('beforeinstallprompt') === 'true') {
-          // Trigger del prompt di installazione nativo di Chrome
-          e.prompt();
-          
-          // Pulisci il localStorage dopo aver mostrato il prompt
-          localStorage.removeItem('beforeinstallprompt');
-          deferredPrompt = null;
-        }
-      }, 3000);
+      console.log('PWA install prompt disponibile');
+      
+      // Non mostrare automaticamente, lascia che l'utente lo richieda
     });
     
     // Gestisce l'evento appinstalled
@@ -137,8 +129,25 @@
         // L'app è già installata, rimuovi il prompt
         localStorage.removeItem('beforeinstallprompt');
         deferredPrompt = null;
+        console.log('App già installata');
       }
     });
+    
+    // Funzione per mostrare il prompt manualmente
+    window.showInstallPrompt = function() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('Utente ha accettato l\'installazione');
+          } else {
+            console.log('Utente ha rifiutato l\'installazione');
+          }
+          deferredPrompt = null;
+          localStorage.removeItem('beforeinstallprompt');
+        });
+      }
+    };
   </script>
 </head>
 <body>

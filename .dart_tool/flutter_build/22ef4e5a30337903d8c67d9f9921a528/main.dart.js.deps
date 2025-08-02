@@ -981,7 +981,8 @@ file:///Users/roberto/Desktop/Invory%20Main/invory/.dart_tool/flutter_build/22ef
 file:///Users/roberto/Desktop/Invory%20Main/invory/.dart_tool/flutter_build/22ef4e5a30337903d8c67d9f9921a528/main.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/.dart_tool/flutter_build/22ef4e5a30337903d8c67d9f9921a528/web_plugin_registrant.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/core/di/injection_container.dart
-file:///Users/roberto/Desktop/Invory%20Main/invory/lib/core/services/fcm_http_service.dart
+file:///Users/roberto/Desktop/Invory%20Main/invory/lib/core/services/fcm_notification_service.dart
+file:///Users/roberto/Desktop/Invory%20Main/invory/lib/core/services/fcm_web_service.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/core/services/notification_service.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/data/datasources/firebaseauth_service.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/data/datasources/firestore_service.dart
@@ -998,6 +999,7 @@ file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/repositories/produ
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/repositories/supplier_repository.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/auth/login_usecase.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/product/add_product_usecase.dart
+file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/product/check_low_stock_notification_usecase.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/product/check_stock_notifications_usecase.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/product/delete_product_usecase.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/domain/usecases/product/get_products_usecase.dart
@@ -1023,8 +1025,10 @@ file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/floa
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/fornitore_dialog.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/info_box.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/main_button.dart
+file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/notification_handler.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/presentation/widgets/product_card.dart
 file:///Users/roberto/Desktop/Invory%20Main/invory/lib/theme.dart
+file:///Users/roberto/Desktop/Invory%20Main/invory/lib/utils/web_notification_test.dart
 file:///usr/local/share/flutter/bin/cache/flutter_web_sdk/kernel/dart2js_platform.dill
 file:///usr/local/share/flutter/packages/flutter/lib/animation.dart
 file:///usr/local/share/flutter/packages/flutter/lib/cupertino.dart
