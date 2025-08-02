@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <base href="/">
+  <base href="/invory/">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -52,7 +52,7 @@
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           const token = await getToken(messaging, {
-            vapidKey: 'YOUR_VAPID_KEY_HERE'
+            vapidKey: 'BNWjU0ATK4OlVO_n8ybggAsPr8YFclPYrHNMQzyNt4LxIl_QJHrKT9gOdNNAJdDxNV5XMZtsS1WsSccwuFIU-yo'
           });
           console.log('FCM Token:', token);
           

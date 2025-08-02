@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FCMNotificationService {
   static final FCMNotificationService _instance =
@@ -23,6 +24,14 @@ class FCMNotificationService {
 
   /// Inizializza il servizio FCM
   Future<void> initialize() async {
+    // Non inizializzare FCM sul web
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('FCM non inizializzato sul web - usa FCMWebService');
+      }
+      return;
+    }
+
     try {
       // Richiedi permessi per le notifiche
       NotificationSettings settings = await _messaging.requestPermission(
@@ -169,11 +178,11 @@ class FCMNotificationService {
       // Per il web, usiamo l'ID token di Firebase Auth
       // Per mobile, potremmo aver bisogno di un approccio diverso
       final idToken = await user.getIdToken();
-      
+
       if (kDebugMode && idToken != null) {
         print('Access token ottenuto: ${idToken.substring(0, 20)}...');
       }
-      
+
       return idToken;
     } catch (e) {
       if (kDebugMode) {
@@ -189,6 +198,14 @@ class FCMNotificationService {
     required String body,
     Map<String, dynamic>? data,
   }) async {
+    // Non inviare FCM dal web
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('FCM non supportato sul web - usa FCMWebService');
+      }
+      return;
+    }
+
     try {
       final tokens = await _getUserTokens();
       if (tokens.isEmpty) {
@@ -325,6 +342,14 @@ class FCMNotificationService {
     required int currentQuantity,
     required int threshold,
   }) async {
+    // Non inviare FCM dal web
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('FCM low stock non supportato sul web - usa FCMWebService');
+      }
+      return;
+    }
+
     final title = 'Prodotto sotto scorta';
     final body =
         'Il prodotto $productName è sotto la soglia (${currentQuantity}/${threshold})';
@@ -334,6 +359,28 @@ class FCMNotificationService {
       'productName': productName,
       'currentQuantity': currentQuantity.toString(),
       'threshold': threshold.toString(),
+    };
+
+    await sendNotificationToUser(title: title, body: body, data: data);
+  }
+
+  /// Invia una notifica per prodotto esaurito
+  Future<void> sendOutOfStockNotification({required String productName}) async {
+    // Non inviare FCM dal web
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('FCM out of stock non supportato sul web - usa FCMWebService');
+      }
+      return;
+    }
+
+    final title = 'Prodotto esaurito';
+    final body = 'Il prodotto $productName è completamente esaurito';
+
+    final data = {
+      'type': 'out_of_stock',
+      'productName': productName,
+      'currentQuantity': '0',
     };
 
     await sendNotificationToUser(title: title, body: body, data: data);
