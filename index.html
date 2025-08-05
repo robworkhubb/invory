@@ -32,8 +32,8 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
 
-    // Configurazione Firebase hardcoded (stessa di firebase_options.dart)
-    const firebaseConfig = {
+    // Configurazione Firebase (verrà sovrascritta dal Dart)
+    let firebaseConfig = {
       apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
       authDomain: "invory-b9a72.firebaseapp.com",
       projectId: "invory-b9a72",
@@ -43,19 +43,69 @@
       measurementId: "G-MTDPNYBZG4"
     };
 
-    // Recupera le variabili aggiuntive dal window object (passate dal Dart)
-    const env = window.flutterConfiguration || {};
-    const vapidKey = env.VAPID_KEY || '';
+    // VAPID Key per le notifiche web
+    const vapidKey = 'BMDdRanIyEdtiUDMzOON8gLELJbQV_lBfhx_rb_Q5WEJ9GFdtV0ObfPvKFnjOyrPFMTwcgW7wh1FBpf0F2bDE4M';
 
-    console.log('🔧 Configurazione Firebase caricata');
-    console.log('   - VAPID_KEY: ' + (vapidKey ? '✅' : '❌'));
+    // Variabili globali
+    let messaging = null;
+    let isInitialized = false;
+    let initializationPromise = null;
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const messaging = getMessaging(app);
+    // Funzione per inizializzare Firebase con configurazione dinamica
+    async function initializeFirebase() {
+      if (isInitialized) {
+        console.log('🔧 Firebase già inizializzato');
+        return;
+      }
 
-    // Richiesta permessi e generazione token FCM
+      try {
+        console.log('🔧 Inizializzazione Firebase...');
+
+        // Recupera le variabili aggiuntive dal window object (passate dal Dart)
+        const env = window.flutterConfiguration || {};
+        
+        // Aggiorna la configurazione Firebase se fornita
+        if (env.FIREBASE_API_KEY) {
+          firebaseConfig = {
+            apiKey: env.FIREBASE_API_KEY,
+            authDomain: env.FIREBASE_AUTH_DOMAIN,
+            projectId: env.FIREBASE_PROJECT_ID,
+            storageBucket: env.FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
+            appId: env.FIREBASE_APP_ID,
+            measurementId: env.FIREBASE_MEASUREMENT_ID
+          };
+        }
+
+        console.log('🔧 Configurazione Firebase caricata');
+        console.log('   - Firebase Config: ✅');
+        console.log('   - VAPID_KEY: ' + (vapidKey ? '✅' : '❌'));
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        messaging = getMessaging(app);
+
+        isInitialized = true;
+        console.log('✅ Firebase inizializzato con successo');
+
+        // Inizializza automaticamente le notifiche se i permessi sono già concessi
+        if (Notification.permission === 'granted') {
+          await requestNotificationPermission();
+        }
+
+      } catch (error) {
+        console.error('❌ Errore inizializzazione Firebase:', error);
+        throw error;
+      }
+    }
+
+    // Richiesta permessi e generazione token FCM con retry
     async function requestNotificationPermission() {
+      if (!isInitialized) {
+        console.warn('⚠️ Firebase non inizializzato, impossibile richiedere permessi');
+        return;
+      }
+
       try {
         console.log('🔔 Richiesta permessi notifiche...');
         const permission = await Notification.requestPermission();
@@ -80,6 +130,14 @@
             if (window.flutterConfiguration && window.flutterConfiguration.onTokenReceived) {
               window.flutterConfiguration.onTokenReceived(token);
             }
+
+            // Invia messaggio al service worker
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: 'FCM_TOKEN_GENERATED',
+                payload: { token: token }
+              });
+            }
           } else {
             console.error('❌ Impossibile generare token FCM');
           }
@@ -92,75 +150,107 @@
     }
 
     // Gestione notifiche in foreground (web native)
-    onMessage(messaging, (payload) => {
-      console.log('🔔 Notifica ricevuta in foreground:', payload);
-      
-      // Mostra notifica locale
-      if (Notification.permission === 'granted') {
-        const notification = new Notification(payload.notification.title, {
-          body: payload.notification.body,
-          icon: '/invory/icons/Icon-192.png',
-          tag: 'invory_notification_' + Date.now(),
-          requireInteraction: true,
-          actions: [
-            {
-              action: 'open',
-              title: 'Apri',
-              icon: '/invory/icons/Icon-192.png'
-            },
-            {
-              action: 'close',
-              title: 'Chiudi'
-            }
-          ]
-        });
-
-        notification.onclick = function(event) {
-          console.log('🔔 Notifica locale cliccata');
-          notification.close();
-          window.focus();
-        };
+    function setupForegroundNotifications() {
+      if (!messaging) {
+        console.warn('⚠️ Messaging non inizializzato');
+        return;
       }
-    });
 
-    // Registra il Service Worker per FCM
+      onMessage(messaging, (payload) => {
+        console.log('🔔 Notifica ricevuta in foreground:', payload);
+        
+        // Mostra notifica locale
+        if (Notification.permission === 'granted') {
+          const notification = new Notification(payload.notification.title, {
+            body: payload.notification.body,
+            icon: '/invory/icons/Icon-192.png',
+            tag: 'invory_notification',
+            data: payload.data || {}
+          });
+
+          notification.onclick = function() {
+            console.log('🔔 Notifica cliccata');
+            notification.close();
+            // Opzionale: apri l'app o una pagina specifica
+            window.focus();
+          };
+        }
+      });
+    }
+
+    // Registra il Service Worker per FCM con retry
     async function registerServiceWorker() {
       if ('serviceWorker' in navigator) {
         try {
           console.log('🔧 Registrazione Service Worker...');
-          const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
+          
+          // Path corretto per GitHub Pages
+          const swPath = './firebase-messaging-sw.js';
+          
+          const registration = await navigator.serviceWorker.register(swPath, {
             scope: '/invory/'
           });
+          
           console.log('✅ Service Worker registrato:', registration);
           
           // Aspetta che il service worker sia attivo
           await navigator.serviceWorker.ready;
           console.log('✅ Service Worker pronto');
           
+          // Configura le notifiche in foreground
+          setupForegroundNotifications();
+          
           // Richiedi permessi dopo che il service worker è pronto
-          await requestNotificationPermission();
+          if (Notification.permission === 'default') {
+            await requestNotificationPermission();
+          }
           
         } catch (error) {
           console.error('❌ Errore registrazione Service Worker:', error);
           
           // Fallback: richiedi permessi anche se il service worker fallisce
-          await requestNotificationPermission();
+          if (Notification.permission === 'default') {
+            await requestNotificationPermission();
+          }
         }
       } else {
         console.warn('⚠️ Service Worker non supportato');
-        await requestNotificationPermission();
+        if (Notification.permission === 'default') {
+          await requestNotificationPermission();
+        }
       }
     }
 
     // Inizializza tutto quando la pagina è caricata
-    window.addEventListener('load', registerServiceWorker);
+    window.addEventListener('load', async () => {
+      try {
+        // Inizializza Firebase
+        await initializeFirebase();
+        
+        // Registra il service worker
+        await registerServiceWorker();
+        
+      } catch (error) {
+        console.error('❌ Errore durante l\'inizializzazione:', error);
+      }
+    });
     
     // Esponi le funzioni per Flutter
     window.firebaseMessaging = {
       getToken: () => localStorage.getItem('fcm_token'),
       requestPermission: requestNotificationPermission,
+      initialize: initializeFirebase,
       onTokenReceived: null
     };
+
+    // Gestisci i messaggi dal service worker
+    navigator.serviceWorker?.addEventListener('message', (event) => {
+      console.log('📨 Messaggio ricevuto dal Service Worker:', event.data);
+      
+      if (event.data && event.data.type === 'FIREBASE_CONFIG') {
+        console.log('✅ Configurazione Firebase ricevuta dal Service Worker');
+      }
+    });
   </script>
 
   <!-- PWA Install Prompt -->
@@ -168,43 +258,20 @@
     let deferredPrompt;
     
     window.addEventListener('beforeinstallprompt', (e) => {
-      // Previeni il prompt automatico
-      e.preventDefault();
-      // Salva l'evento per usarlo successivamente
-      deferredPrompt = e;
-      // Marca che il prompt è disponibile
-      localStorage.setItem('beforeinstallprompt', 'true');
       console.log('📱 PWA install prompt disponibile');
-      // Non mostrare automaticamente, lascia che l'utente lo richieda
+      e.preventDefault();
+      deferredPrompt = e;
+      localStorage.setItem('beforeinstallprompt', 'true');
     });
-    
-    // Gestisce l'evento appinstalled
-    window.addEventListener('appinstalled', (evt) => {
-      // Pulisci il localStorage quando l'app è installata
-      localStorage.removeItem('beforeinstallprompt');
-      deferredPrompt = null;
-      console.log('✅ App installata con successo!');
-    });
-    
-    // Controlla se l'app è già installata al caricamento
-    window.addEventListener('load', () => {
-      if (window.matchMedia('(display-mode: standalone)').matches) {
-        // L'app è già installata, rimuovi il prompt
-        localStorage.removeItem('beforeinstallprompt');
-        deferredPrompt = null;
-        console.log('📱 App già installata');
-      }
-    });
-    
-    // Funzione per mostrare il prompt manualmente
+
     window.showInstallPrompt = function() {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
           if (choiceResult.outcome === 'accepted') {
-            console.log('✅ Utente ha accettato l\'installazione');
+            console.log('✅ PWA installata');
           } else {
-            console.log('❌ Utente ha rifiutato l\'installazione');
+            console.log('❌ PWA installazione rifiutata');
           }
           deferredPrompt = null;
           localStorage.removeItem('beforeinstallprompt');
@@ -214,6 +281,20 @@
   </script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>
