@@ -1,16 +1,32 @@
 // Firebase Cloud Messaging Service Worker
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.11.1/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
-  authDomain: "invory-b9a72.firebaseapp.com",
-  projectId: "invory-b9a72",
-  storageBucket: "invory-b9a72.firebasestorage.app",
-  messagingSenderId: "524552556806",
-  appId: "1:524552556806:web:4bae50045374103e684e87",
-  measurementId: "G-MTDPNYBZG4"
+// Carica la configurazione da Flutter
+let firebaseConfig = null;
+
+// Prova a caricare la configurazione dal messaggio di Flutter
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'FIREBASE_CONFIG') {
+    firebaseConfig = event.data.config;
+    console.log('Configurazione Firebase caricata:', firebaseConfig);
+  }
 });
+
+// Configurazione di fallback (per sviluppo)
+if (!firebaseConfig) {
+  firebaseConfig = {
+    apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
+    authDomain: "invory-b9a72.firebaseapp.com",
+    projectId: "invory-b9a72",
+    storageBucket: "invory-b9a72.firebasestorage.app",
+    messagingSenderId: "524552556806",
+    appId: "1:524552556806:web:4bae50045374103e684e87",
+    measurementId: "G-MTDPNYBZG4"
+  };
+}
+
+firebase.initializeApp(firebaseConfig);
 
 const messaging = firebase.messaging();
 

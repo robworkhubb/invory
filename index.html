@@ -97,6 +97,17 @@
 
     // Richiedi permessi all'avvio
     window.addEventListener('load', requestNotificationPermission);
+    
+    // Registra il Service Worker per FCM
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('Service Worker registrato:', registration);
+        })
+        .catch((error) => {
+          console.error('Errore registrazione Service Worker:', error);
+        });
+    }
   </script>
 
   <!-- PWA Install Prompt -->
