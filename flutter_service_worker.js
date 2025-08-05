@@ -29,7 +29,7 @@ const RESOURCES = {"assets/animations/splash.json": "00b60a4f1662667519a7a219021
 "favicon.png": "15513786f7da9f28b79278d39d8ec98a",
 "firebase-messaging-sw.js": "eb85511720f87a81854b20dd8dc6f766",
 "flutter.js": "83d881c1dbb6d6bcd6b42e274605b69c",
-"flutter_bootstrap.js": "a90d526e29bb5dee553a9d039b13f78c",
+"flutter_bootstrap.js": "47768e612112e29b00346dc193434b1f",
 "icons/Icon-192.png": "e6aef9a07fa05649b76cdc402a04afce",
 "icons/Icon-512.png": "ee4ee796d3451b2578084fd562d8c8d9",
 "icons/Icon-maskable-192.png": "e6aef9a07fa05649b76cdc402a04afce",
