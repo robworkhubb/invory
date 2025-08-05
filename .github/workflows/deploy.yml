@@ -1,0 +1,66 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+    
+    - name: Install dependencies
+      run: flutter pub get
+    
+    - name: Build web app
+      run: |
+        flutter build web --release \
+          --base-href /invory/ \
+          --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
+          --dart-define=FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }} \
+          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+          --dart-define=FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }} \
+          --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} \
+          --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
+          --dart-define=FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }} \
+          --dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }} \
+          --dart-define=FCM_PROJECT_ID=${{ secrets.FCM_PROJECT_ID }} \
+          --dart-define=FCM_CLIENT_EMAIL=${{ secrets.FCM_CLIENT_EMAIL }} \
+          --dart-define=FCM_PRIVATE_KEY="${{ secrets.FCM_PRIVATE_KEY }}"
+    
+    - name: Verify build output
+      run: |
+        echo "✅ Build completato"
+        echo "📁 Contenuto build/web:"
+        ls -la build/web/
+        echo "🔧 Service Worker presente:"
+        ls -la build/web/firebase-messaging-sw.js || echo "❌ Service Worker mancante"
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./build/web
+        force_orphan: true
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'Deploy Invory Web App - $(date)'
+    
+    - name: Deploy Status
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "🚀 Deploy completato!"
+        echo "🌐 App disponibile su: https://${{ github.repository_owner }}.github.io/invory/"
+        echo "📱 PWA installabile dal browser"
+        echo "🔔 Notifiche push configurate" 
