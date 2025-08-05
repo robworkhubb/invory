@@ -32,32 +32,23 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
 
-    // Recupera le variabili d'ambiente dal window object (passate dal Dart)
-    const env = window.flutterConfiguration || {};
-    
-    // Verifica che tutte le variabili necessarie siano presenti
-    const requiredKeys = [
-      'FIREBASE_API_KEY', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_PROJECT_ID',
-      'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID',
-      'FIREBASE_APP_ID', 'FIREBASE_MEASUREMENT_ID'
-    ];
-    
-    const missingKeys = requiredKeys.filter(key => !env[key]);
-    if (missingKeys.length > 0) {
-      console.error('Variabili d\'ambiente mancanti:', missingKeys);
-      console.error('Assicurati che il file .env sia configurato correttamente');
-      throw new Error('Configurazione Firebase incompleta. Variabili mancanti: ' + missingKeys.join(', '));
-    }
-    
+    // Configurazione Firebase hardcoded (stessa di firebase_options.dart)
     const firebaseConfig = {
-      apiKey: env.FIREBASE_API_KEY,
-      authDomain: env.FIREBASE_AUTH_DOMAIN,
-      projectId: env.FIREBASE_PROJECT_ID,
-      storageBucket: env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: env.FIREBASE_APP_ID,
-      measurementId: env.FIREBASE_MEASUREMENT_ID
+      apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
+      authDomain: "invory-b9a72.firebaseapp.com",
+      projectId: "invory-b9a72",
+      storageBucket: "invory-b9a72.firebasestorage.app",
+      messagingSenderId: "524552556806",
+      appId: "1:524552556806:web:4bae50045374103e684e87",
+      measurementId: "G-MTDPNYBZG4"
     };
+
+    // Recupera le variabili aggiuntive dal window object (passate dal Dart)
+    const env = window.flutterConfiguration || {};
+    const vapidKey = env.VAPID_KEY || '';
+
+    console.log('🔧 Configurazione Firebase caricata');
+    console.log('   - VAPID_KEY: ' + (vapidKey ? '✅' : '❌'));
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
@@ -71,14 +62,14 @@
         console.log('🔔 Permesso notifiche:', permission);
         
         if (permission === 'granted') {
-          if (!env.VAPID_KEY) {
-            console.error('❌ VAPID_KEY mancante. Le notifiche potrebbero non funzionare.');
+          if (!vapidKey) {
+            console.warn('⚠️ VAPID_KEY mancante. Le notifiche potrebbero non funzionare.');
             return;
           }
           
           console.log('🔔 Generazione token FCM...');
           const token = await getToken(messaging, {
-            vapidKey: env.VAPID_KEY
+            vapidKey: vapidKey
           });
           
           if (token) {
@@ -137,7 +128,7 @@
       if ('serviceWorker' in navigator) {
         try {
           console.log('🔧 Registrazione Service Worker...');
-          const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
+          const registration = await navigator.serviceWorker.register('/invory/firebase-messaging-sw.js', {
             scope: '/invory/'
           });
           console.log('✅ Service Worker registrato:', registration);
