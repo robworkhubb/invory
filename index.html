@@ -128,7 +128,7 @@
       if ('serviceWorker' in navigator) {
         try {
           console.log('🔧 Registrazione Service Worker...');
-          const registration = await navigator.serviceWorker.register('/invory/firebase-messaging-sw.js', {
+          const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
             scope: '/invory/'
           });
           console.log('✅ Service Worker registrato:', registration);

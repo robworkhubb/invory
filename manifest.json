@@ -26,14 +26,5 @@
   "lang": "it",
   "dir": "ltr",
   "prefer_related_applications": false,
-  "related_applications": [],
-  "screenshots": [
-    {
-      "src": "screenshots/home.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Homepage di Invory"
-    }
-  ]
+  "related_applications": []
 }
