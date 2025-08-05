@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <base href="/invory/">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Invory - Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#009688">
+  <meta name="msapplication-TileColor" content="#009688">
+  <meta name="msapplication-config" content="browserconfig.xml">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Invory">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Invory - Gestione Magazzino</title>
+
+  <!-- Firebase Configuration -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
+
+    // Recupera le variabili d'ambiente dal window object (passate dal Dart)
+    const env = window.flutterConfiguration || {};
+    
+    // Verifica che tutte le variabili necessarie siano presenti
+    const requiredKeys = [
+      'FIREBASE_API_KEY', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_PROJECT_ID',
+      'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID',
+      'FIREBASE_APP_ID', 'FIREBASE_MEASUREMENT_ID'
+    ];
+    
+    const missingKeys = requiredKeys.filter(key => !env[key]);
+    if (missingKeys.length > 0) {
+      console.error('Variabili d\'ambiente mancanti:', missingKeys);
+      console.error('Assicurati che il file .env sia configurato correttamente');
+      throw new Error('Configurazione Firebase incompleta. Variabili mancanti: ' + missingKeys.join(', '));
+    }
+    
+    const firebaseConfig = {
+      apiKey: env.FIREBASE_API_KEY,
+      authDomain: env.FIREBASE_AUTH_DOMAIN,
+      projectId: env.FIREBASE_PROJECT_ID,
+      storageBucket: env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: env.FIREBASE_APP_ID,
+      measurementId: env.FIREBASE_MEASUREMENT_ID
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+
+    // Richiesta permessi e generazione token FCM
+    async function requestNotificationPermission() {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          if (!env.VAPID_KEY) {
+            console.error('VAPID_KEY mancante. Le notifiche potrebbero non funzionare.');
+            return;
+          }
+          const token = await getToken(messaging, {
+            vapidKey: env.VAPID_KEY
+          });
+          console.log('FCM Token:', token);
+          localStorage.setItem('fcm_token', token);
+        }
+      } catch (error) {
+        console.error('Error getting notification permission:', error);
+      }
+    }
+
+    // Gestione notifiche in foreground (web native)
+    onMessage(messaging, (payload) => {
+      console.log('Message received:', payload);
+      // Mostra notifica locale
+      if (Notification.permission === 'granted') {
+        new Notification(payload.notification.title, {
+          body: payload.notification.body,
+          icon: '/invory/icons/Icon-192.png'
+        });
+      }
+    });
+
+    // Richiedi permessi all'avvio
+    window.addEventListener('load', requestNotificationPermission);
+  </script>
+
+  <!-- PWA Install Prompt -->
+  <script>
+    let deferredPrompt;
+    
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Previeni il prompt automatico
+      e.preventDefault();
+      // Salva l'evento per usarlo successivamente
+      deferredPrompt = e;
+      // Marca che il prompt è disponibile
+      localStorage.setItem('beforeinstallprompt', 'true');
+      console.log('PWA install prompt disponibile');
+      // Non mostrare automaticamente, lascia che l'utente lo richieda
+    });
+    
+    // Gestisce l'evento appinstalled
+    window.addEventListener('appinstalled', (evt) => {
+      // Pulisci il localStorage quando l'app è installata
+      localStorage.removeItem('beforeinstallprompt');
+      deferredPrompt = null;
+      console.log('App installata con successo!');
+    });
+    
+    // Controlla se l'app è già installata al caricamento
+    window.addEventListener('load', () => {
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        // L'app è già installata, rimuovi il prompt
+        localStorage.removeItem('beforeinstallprompt');
+        deferredPrompt = null;
+        console.log('App già installata');
+      }
+    });
+    
+    // Funzione per mostrare il prompt manualmente
+    window.showInstallPrompt = function() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('Utente ha accettato l\'installazione');
+          } else {
+            console.log('Utente ha rifiutato l\'installazione');
+          }
+          deferredPrompt = null;
+          localStorage.removeItem('beforeinstallprompt');
+        });
+      }
+    };
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
