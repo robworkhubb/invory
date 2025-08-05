@@ -1,300 +1,50 @@
 <!DOCTYPE html>
 <html lang="it">
-<head>
-  <base href="/invory/">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Invory - Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons">
+  <head>
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+    <meta name="description" content="Invory - Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#009688" />
+    <base href="/invory/" />
 
-  <!-- PWA meta tags -->
-  <meta name="theme-color" content="#009688">
-  <meta name="msapplication-TileColor" content="#009688">
-  <meta name="msapplication-config" content="browserconfig.xml">
+    <title>Invory - Gestione Magazzino</title>
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Invory">
-  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png" />
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+    <!-- iOS Meta -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Invory" />
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png" />
 
-  <title>Invory - Gestione Magazzino</title>
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json" />
 
-  <!-- Firebase Configuration -->
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
+    <!-- Flutter core -->
+    <script src="flutter.js" defer></script>
 
-    // Configurazione Firebase (verrà sovrascritta dal Dart)
-    let firebaseConfig = {
-      apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
-      authDomain: "invory-b9a72.firebaseapp.com",
-      projectId: "invory-b9a72",
-      storageBucket: "invory-b9a72.firebasestorage.app",
-      messagingSenderId: "524552556806",
-      appId: "1:524552556806:web:4bae50045374103e684e87",
-      measurementId: "G-MTDPNYBZG4"
-    };
-
-    // VAPID Key per le notifiche web
-    const vapidKey = 'BMDdRanIyEdtiUDMzOON8gLELJbQV_lBfhx_rb_Q5WEJ9GFdtV0ObfPvKFnjOyrPFMTwcgW7wh1FBpf0F2bDE4M';
-
-    // Variabili globali
-    let messaging = null;
-    let isInitialized = false;
-    let initializationPromise = null;
-
-    // Funzione per inizializzare Firebase con configurazione dinamica
-    async function initializeFirebase() {
-      if (isInitialized) {
-        console.log('🔧 Firebase già inizializzato');
-        return;
-      }
-
-      try {
-        console.log('🔧 Inizializzazione Firebase...');
-
-        // Recupera le variabili aggiuntive dal window object (passate dal Dart)
-        const env = window.flutterConfiguration || {};
-        
-        // Aggiorna la configurazione Firebase se fornita
-        if (env.FIREBASE_API_KEY) {
-          firebaseConfig = {
-            apiKey: env.FIREBASE_API_KEY,
-            authDomain: env.FIREBASE_AUTH_DOMAIN,
-            projectId: env.FIREBASE_PROJECT_ID,
-            storageBucket: env.FIREBASE_STORAGE_BUCKET,
-            messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
-            appId: env.FIREBASE_APP_ID,
-            measurementId: env.FIREBASE_MEASUREMENT_ID
-          };
-        }
-
-        console.log('🔧 Configurazione Firebase caricata');
-        console.log('   - Firebase Config: ✅');
-        console.log('   - VAPID_KEY: ' + (vapidKey ? '✅' : '❌'));
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        messaging = getMessaging(app);
-
-        isInitialized = true;
-        console.log('✅ Firebase inizializzato con successo');
-
-        // Inizializza automaticamente le notifiche se i permessi sono già concessi
-        if (Notification.permission === 'granted') {
-          await requestNotificationPermission();
-        }
-
-      } catch (error) {
-        console.error('❌ Errore inizializzazione Firebase:', error);
-        throw error;
-      }
-    }
-
-    // Richiesta permessi e generazione token FCM con retry
-    async function requestNotificationPermission() {
-      if (!isInitialized) {
-        console.warn('⚠️ Firebase non inizializzato, impossibile richiedere permessi');
-        return;
-      }
-
-      try {
-        console.log('🔔 Richiesta permessi notifiche...');
-        const permission = await Notification.requestPermission();
-        console.log('🔔 Permesso notifiche:', permission);
-        
-        if (permission === 'granted') {
-          if (!vapidKey) {
-            console.warn('⚠️ VAPID_KEY mancante. Le notifiche potrebbero non funzionare.');
-            return;
-          }
-          
-          console.log('🔔 Generazione token FCM...');
-          const token = await getToken(messaging, {
-            vapidKey: vapidKey
-          });
-          
-          if (token) {
-            console.log('✅ FCM Token generato:', token.substring(0, 20) + '...');
-            localStorage.setItem('fcm_token', token);
-            
-            // Notifica Flutter che il token è pronto
-            if (window.flutterConfiguration && window.flutterConfiguration.onTokenReceived) {
-              window.flutterConfiguration.onTokenReceived(token);
-            }
-
-            // Invia messaggio al service worker
-            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({
-                type: 'FCM_TOKEN_GENERATED',
-                payload: { token: token }
-              });
-            }
-          } else {
-            console.error('❌ Impossibile generare token FCM');
-          }
-        } else {
-          console.warn('⚠️ Permesso notifiche negato:', permission);
-        }
-      } catch (error) {
-        console.error('❌ Errore nella richiesta permessi notifiche:', error);
-      }
-    }
-
-    // Gestione notifiche in foreground (web native)
-    function setupForegroundNotifications() {
-      if (!messaging) {
-        console.warn('⚠️ Messaging non inizializzato');
-        return;
-      }
-
-      onMessage(messaging, (payload) => {
-        console.log('🔔 Notifica ricevuta in foreground:', payload);
-        
-        // Mostra notifica locale
-        if (Notification.permission === 'granted') {
-          const notification = new Notification(payload.notification.title, {
-            body: payload.notification.body,
-            icon: '/invory/icons/Icon-192.png',
-            tag: 'invory_notification',
-            data: payload.data || {}
-          });
-
-          notification.onclick = function() {
-            console.log('🔔 Notifica cliccata');
-            notification.close();
-            // Opzionale: apri l'app o una pagina specifica
-            window.focus();
-          };
-        }
-      });
-    }
-
-    // Registra il Service Worker per FCM con retry
-    async function registerServiceWorker() {
-      if ('serviceWorker' in navigator) {
-        try {
-          console.log('🔧 Registrazione Service Worker...');
-          
-          // Path corretto per GitHub Pages
-          const swPath = './firebase-messaging-sw.js';
-          
-          const registration = await navigator.serviceWorker.register(swPath, {
-            scope: '/invory/'
-          });
-          
-          console.log('✅ Service Worker registrato:', registration);
-          
-          // Aspetta che il service worker sia attivo
-          await navigator.serviceWorker.ready;
-          console.log('✅ Service Worker pronto');
-          
-          // Configura le notifiche in foreground
-          setupForegroundNotifications();
-          
-          // Richiedi permessi dopo che il service worker è pronto
-          if (Notification.permission === 'default') {
-            await requestNotificationPermission();
-          }
-          
-        } catch (error) {
-          console.error('❌ Errore registrazione Service Worker:', error);
-          
-          // Fallback: richiedi permessi anche se il service worker fallisce
-          if (Notification.permission === 'default') {
-            await requestNotificationPermission();
-          }
-        }
-      } else {
-        console.warn('⚠️ Service Worker non supportato');
-        if (Notification.permission === 'default') {
-          await requestNotificationPermission();
-        }
-      }
-    }
-
-    // Inizializza tutto quando la pagina è caricata
-    window.addEventListener('load', async () => {
-      try {
-        // Inizializza Firebase
-        await initializeFirebase();
-        
-        // Registra il service worker
-        await registerServiceWorker();
-        
-      } catch (error) {
-        console.error('❌ Errore durante l\'inizializzazione:', error);
-      }
-    });
-    
-    // Esponi le funzioni per Flutter
-    window.firebaseMessaging = {
-      getToken: () => localStorage.getItem('fcm_token'),
-      requestPermission: requestNotificationPermission,
-      initialize: initializeFirebase,
-      onTokenReceived: null
-    };
-
-    // Gestisci i messaggi dal service worker
-    navigator.serviceWorker?.addEventListener('message', (event) => {
-      console.log('📨 Messaggio ricevuto dal Service Worker:', event.data);
-      
-      if (event.data && event.data.type === 'FIREBASE_CONFIG') {
-        console.log('✅ Configurazione Firebase ricevuta dal Service Worker');
-      }
-    });
-  </script>
-
-  <!-- PWA Install Prompt -->
-  <script>
-    let deferredPrompt;
-    
-    window.addEventListener('beforeinstallprompt', (e) => {
-      console.log('📱 PWA install prompt disponibile');
-      e.preventDefault();
-      deferredPrompt = e;
-      localStorage.setItem('beforeinstallprompt', 'true');
-    });
-
-    window.showInstallPrompt = function() {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('✅ PWA installata');
-          } else {
-            console.log('❌ PWA installazione rifiutata');
-          }
-          deferredPrompt = null;
-          localStorage.removeItem('beforeinstallprompt');
+    <!-- Service Worker Version -->
+    <script>
+      const serviceWorkerVersion = null;
+    </script>
+  </head>
+  <body>
+    <script>
+      window.addEventListener('load', function (ev) {
+        _flutter.loader.loadEntrypoint({
+          serviceWorker: {
+            serviceWorkerVersion: serviceWorkerVersion,
+          },
+          onEntrypointLoaded: function (engineInitializer) {
+            engineInitializer.initializeEngine().then(function (appRunner) {
+              appRunner.runApp();
+            });
+          },
         });
-      }
-    };
-  </script>
-</head>
-<body>
-  <script>
-    window.addEventListener('load', function(ev) {
-      // Download main.dart.js
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
-        },
-        onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
-            appRunner.runApp();
-          });
-        }
       });
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>
