@@ -1,14 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../../domain/entities/product.dart';
-import '../../domain/usecases/product/check_stock_notifications_usecase.dart';
-import '../../../core/services/notification_service.dart';
+import '../../core/services/notifications_service.dart';
+import '../../core/services/stock_notification_service.dart';
 import 'dart:async'; // Import per StreamSubscription
 
 class ProductProvider with ChangeNotifier {
   final ProductRepository _productRepository;
-  final INotificationService _notificationService;
-  late final CheckStockNotificationsUseCase _checkStockNotificationsUseCase;
+  final NotificationsService _notificationService;
+  final StockNotificationService _stockNotificationService;
 
   List<Product> _prodotti = [];
   bool _loading = true;
@@ -20,13 +20,16 @@ class ProductProvider with ChangeNotifier {
   bool _isInitialized = false;
 
   // Set per tracciare i prodotti che hanno già ricevuto notifiche
-  final Set<String> _notifiedProducts = <String>{};
   DateTime? _lastNotificationCheck;
 
-  ProductProvider(this._productRepository, this._notificationService) {
-    _checkStockNotificationsUseCase = CheckStockNotificationsUseCase(
-      _productRepository,
-    );
+  // Flag per evitare notifiche duplicate durante l'inizializzazione
+  bool _isNotificationCheckInProgress = false;
+
+  ProductProvider(
+    this._productRepository,
+    this._notificationService,
+    this._stockNotificationService,
+  ) {
     // Lazy loading - only load when needed
     _initializeProvider();
     _initializeNotifications();
@@ -42,7 +45,7 @@ class ProductProvider with ChangeNotifier {
   Future<void> _initializeNotifications() async {
     try {
       await _notificationService.initialize();
-      await _notificationService.requestPermissions();
+      await _stockNotificationService.initialize();
     } catch (e) {
       print('Errore nell\'inizializzazione notifiche: $e');
     }
@@ -50,36 +53,36 @@ class ProductProvider with ChangeNotifier {
 
   Future<void> checkAndShowNotifications() async {
     try {
+      // Evita controlli simultanei
+      if (_isNotificationCheckInProgress) {
+        print('⚠️ Controllo notifiche già in corso, saltato');
+        return;
+      }
+
       final now = DateTime.now();
 
       // Evita controlli troppo frequenti (almeno 30 secondi tra un controllo e l'altro)
       if (_lastNotificationCheck != null &&
           now.difference(_lastNotificationCheck!).inSeconds < 30) {
+        print('⚠️ Controllo notifiche troppo frequente, saltato');
         return;
       }
 
+      _isNotificationCheckInProgress = true;
       _lastNotificationCheck = now;
-      final lowStockProducts = await _checkStockNotificationsUseCase();
-      final Set<String> currentLowStockIds = <String>{};
 
-      for (final product in lowStockProducts) {
-        currentLowStockIds.add(product.id);
+      print(
+        '🔍 Iniziando controllo notifiche per ${_prodotti.length} prodotti',
+      );
 
-        // Invia notifica solo se non è già stata inviata per questo prodotto
-        if (!_notifiedProducts.contains(product.id)) {
-          if (product.quantita == 0) {
-            await _notificationService.showOutOfStockNotification(product);
-          } else if (product.quantita <= product.soglia) {
-            await _notificationService.showLowStockNotification(product);
-          }
-          _notifiedProducts.add(product.id);
-        }
-      }
+      // Usa il nuovo servizio per controllare tutti i prodotti
+      await _stockNotificationService.checkAllProducts();
 
-      // Rimuovi dai prodotti notificati quelli che non sono più a scorte basse
-      _notifiedProducts.removeWhere((id) => !currentLowStockIds.contains(id));
+      print('✅ Controllo notifiche completato');
     } catch (e) {
-      print('Errore durante il controllo delle notifiche: $e');
+      print('❌ Errore durante il controllo delle notifiche: $e');
+    } finally {
+      _isNotificationCheckInProgress = false;
     }
   }
 
@@ -182,12 +185,8 @@ class ProductProvider with ChangeNotifier {
     try {
       await _productRepository.updateProduct(product);
 
-      // Rimuovi il prodotto dalla lista dei notificati per permettere una nuova notifica
-      // se le condizioni cambiano
-      _notifiedProducts.remove(product.id);
-
-      // Controlla le notifiche dopo aver aggiornato il prodotto
-      await checkAndShowNotifications();
+      // Controlla se il prodotto necessita di notifica push
+      await _checkProductForNotifications(product);
     } catch (e) {
       print('Errore nell\'aggiornamento del prodotto nel provider: $e');
       rethrow;
@@ -226,41 +225,33 @@ class ProductProvider with ChangeNotifier {
     try {
       await _productRepository.updateProduct(updatedProduct);
 
-      // Rimuovi il prodotto dalla lista dei notificati per permettere una nuova notifica
-      _notifiedProducts.remove(product.id);
-
-      // Forza il controllo delle notifiche quando si scala un prodotto
-      await _forceCheckNotifications();
+      // Controlla se il prodotto necessita di notifica push
+      await _checkProductForNotifications(updatedProduct);
     } catch (e) {
       print('Errore nell\'aggiornamento della quantità: $e');
       rethrow;
     }
   }
 
-  // Metodo per forzare il controllo delle notifiche (bypassa il controllo temporale)
-  Future<void> _forceCheckNotifications() async {
+  /// Controlla se un prodotto necessita di notifiche
+  Future<void> _checkProductForNotifications(Product product) async {
     try {
-      final lowStockProducts = await _checkStockNotificationsUseCase();
-      final Set<String> currentLowStockIds = <String>{};
-
-      for (final product in lowStockProducts) {
-        currentLowStockIds.add(product.id);
-
-        // Invia notifica solo se non è già stata inviata per questo prodotto
-        if (!_notifiedProducts.contains(product.id)) {
-          if (product.quantita == 0) {
-            await _notificationService.showOutOfStockNotification(product);
-          } else if (product.quantita <= product.soglia) {
-            await _notificationService.showLowStockNotification(product);
-          }
-          _notifiedProducts.add(product.id);
-        }
+      // Controlla se il prodotto è esaurito
+      if (product.quantita <= 0) {
+        await _notificationService.sendOutOfStockNotification(
+          productName: product.nome,
+        );
       }
-
-      // Rimuovi dai prodotti notificati quelli che non sono più a scorte basse
-      _notifiedProducts.removeWhere((id) => !currentLowStockIds.contains(id));
+      // Controlla se il prodotto è sotto scorta
+      else if (product.quantita <= product.soglia) {
+        await _notificationService.sendLowStockNotification(
+          productName: product.nome,
+          currentQuantity: product.quantita,
+          threshold: product.soglia,
+        );
+      }
     } catch (e) {
-      print('Errore durante il controllo forzato delle notifiche: $e');
+      print('Errore nel controllo notifiche per prodotto ${product.nome}: $e');
     }
   }
 

@@ -1,24 +1,41 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regole per i token FCM dell'utente
-    match /users/{userId}/tokens/{tokenId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Regole per i prodotti dell'utente
-    match /users/{userId}/prodotti/{productId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Regole per i fornitori dell'utente
-    match /users/{userId}/fornitori/{fornitoreId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Regole per il documento utente
+    // Regole per i documenti utente
     match /users/{userId} {
+      // L'utente può leggere e scrivere solo il proprio documento
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Regole per i prodotti dell'utente
+      match /products/{productId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Regole per i fornitori dell'utente
+      match /suppliers/{supplierId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Regole per i token FCM dell'utente
+      match /tokens/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Regole per le notifiche dell'utente
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Regole legacy per compatibilità (da rimuovere in futuro)
+    match /products/{productId} {
+      allow read, write: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    match /suppliers/{supplierId} {
+      allow read, write: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
     }
   }
 } 

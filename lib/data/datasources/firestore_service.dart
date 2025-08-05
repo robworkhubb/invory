@@ -10,174 +10,154 @@ class FirestoreService {
   // Use lazy initialization instead of immediate initialization
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  // Connection pooling and retry configuration
-
   // Helper method to get current user ID
   String? get _currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
   // Helper method to get user products collection reference
-  CollectionReference<Map<String, dynamic>>? get _userProductsCollection {
-    final userId = _currentUserId;
-    if (userId == null) return null;
-    return _db.collection('users').doc(userId).collection('prodotti');
-  }
-
-  // Helper method to get user suppliers collection reference
-  CollectionReference<Map<String, dynamic>>? get _userSuppliersCollection {
-    final userId = _currentUserId;
-    if (userId == null) return null;
-    return _db.collection('users').doc(userId).collection('fornitori');
-  }
-
-  // Helper method to ensure user document exists
-  Future<void> _ensureUserDocument() async {
+  CollectionReference<Map<String, dynamic>> get _userProductsCollection {
     final userId = _currentUserId;
     if (userId == null) {
       throw Exception('Utente non autenticato');
     }
+    return _db.collection('users').doc(userId).collection('products');
+  }
+
+  // Helper method to get user suppliers collection reference
+  CollectionReference<Map<String, dynamic>> get _userSuppliersCollection {
+    final userId = _currentUserId;
+    if (userId == null) {
+      throw Exception('Utente non autenticato');
+    }
+    return _db.collection('users').doc(userId).collection('suppliers');
+  }
+
+  // Helper method to ensure user document exists
+  Future<void> _ensureUserDocumentExists() async {
+    final userId = _currentUserId;
+    if (userId == null) return;
 
     try {
-      final userDoc = _db.collection('users').doc(userId);
-      final userDocSnapshot = await userDoc.get();
-
-      if (!userDocSnapshot.exists) {
-        // Create user document with basic info
-        await userDoc.set({
+      final userDoc = await _db.collection('users').doc(userId).get();
+      if (!userDoc.exists) {
+        await _db.collection('users').doc(userId).set({
+          'uid': userId,
           'createdAt': FieldValue.serverTimestamp(),
           'lastLogin': FieldValue.serverTimestamp(),
-          'email': FirebaseAuth.instance.currentUser?.email ?? '',
+          'isActive': true,
         });
-      } else {
-        // Update last login
-        await userDoc.update({'lastLogin': FieldValue.serverTimestamp()});
+        if (kDebugMode) {
+          print('✅ Documento utente creato: $userId');
+        }
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Errore nella creazione/aggiornamento documento utente: $e');
+        print('⚠️ Errore nella creazione documento utente: $e');
       }
-      // Non lanciare l'eccezione, permette all'operazione di continuare
-      // Il documento verrà creato automaticamente quando necessario
     }
   }
 
   // 📦 PRODOTTI - Metodi per gestione prodotti specifici dell'utente
-  // users/{uid}/prodotti
+  // users/{uid}/products/{productId}
 
-  /// Aggiunge un prodotto alla collezione specifica dell'utente
+  /// Aggiunge un prodotto alla collezione products dell'utente
   Future<void> addProduct(Product product) async {
-    final collection = _userProductsCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
-    }
+    await _ensureUserDocumentExists();
 
     final productModel = ProductModel.fromEntity(product);
+    final productData = productModel.toMap();
 
     try {
-      await collection.add(productModel.toMap());
-    } catch (e) {
-      print('Errore nell\'aggiunta del prodotto: $e');
-      // Se l'errore è dovuto al fatto che la collezione non esiste,
-      // proviamo a creare il documento utente e riprovare
-      if (e.toString().contains('permission-denied') ||
-          e.toString().contains('not-found') ||
-          e.toString().contains('unavailable')) {
-        try {
-          print('Tentativo di creazione documento utente e retry...');
-          await _ensureUserDocument();
-          await collection.add(productModel.toMap());
-          print('Prodotto aggiunto con successo dopo retry!');
-        } catch (retryError) {
-          print('Errore nel retry: $retryError');
-          throw Exception(
-            'Impossibile aggiungere il prodotto dopo il retry: $retryError',
-          );
-        }
-      } else {
-        throw Exception('Errore nell\'aggiunta del prodotto: $e');
+      await _userProductsCollection.add(productData);
+      if (kDebugMode) {
+        print('✅ Prodotto aggiunto: ${product.nome}');
       }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'aggiunta del prodotto: $e');
+      }
+      throw Exception('Errore nell\'aggiunta del prodotto: $e');
     }
   }
 
   /// Recupera tutti i prodotti dell'utente corrente come stream
   Stream<List<Product>> fetchProducts() {
-    final collection = _userProductsCollection;
-    if (collection == null) {
+    final userId = _currentUserId;
+    if (userId == null) {
       return Stream.value([]); // Return empty list if user not authenticated
     }
-    return collection.snapshots().map(
+
+    return _userProductsCollection.snapshots().map(
       (snapshot) =>
           snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList(),
     );
   }
 
-  /// Aggiorna un prodotto nella collezione specifica dell'utente
+  /// Aggiorna un prodotto nella collezione products dell'utente
   Future<void> updateProduct(Product product) async {
-    await _ensureUserDocument();
-    final collection = _userProductsCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
-    }
+    await _ensureUserDocumentExists();
+
     final productModel = ProductModel.fromEntity(product);
-    return collection.doc(product.id).update(productModel.toMap());
+    final productData = productModel.toMap();
+
+    try {
+      await _userProductsCollection.doc(product.id).update(productData);
+      if (kDebugMode) {
+        print('✅ Prodotto aggiornato: ${product.nome}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'aggiornamento del prodotto: $e');
+      }
+      throw Exception('Errore nell\'aggiornamento del prodotto: $e');
+    }
   }
 
-  /// Elimina un prodotto dalla collezione specifica dell'utente
+  /// Elimina un prodotto dalla collezione products dell'utente
   Future<void> deleteProduct(String id) async {
-    await _ensureUserDocument();
-    final collection = _userProductsCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
+    try {
+      await _userProductsCollection.doc(id).delete();
+      if (kDebugMode) {
+        print('✅ Prodotto eliminato: $id');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'eliminazione del prodotto: $e');
+      }
+      throw Exception('Errore nell\'eliminazione del prodotto: $e');
     }
-    return collection.doc(id).delete();
   }
 
   // 🧑‍💼 FORNITORI - Metodi per gestione fornitori specifici dell'utente
-  // users/{uid}/fornitori
+  // users/{uid}/suppliers/{supplierId}
 
-  /// Aggiunge un fornitore alla collezione specifica dell'utente
+  /// Aggiunge un fornitore alla collezione suppliers dell'utente
   Future<void> addSupplier(Fornitore supplier) async {
-    final collection = _userSuppliersCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
-    }
+    await _ensureUserDocumentExists();
 
     final supplierModel = FornitoreModel.fromEntity(supplier);
+    final supplierData = supplierModel.toMap();
 
     try {
-      await collection.add(supplierModel.toMap());
-    } catch (e) {
-      print('Errore nell\'aggiunta del fornitore: $e');
-      // Se l'errore è dovuto al fatto che la collezione non esiste,
-      // proviamo a creare il documento utente e riprovare
-      if (e.toString().contains('permission-denied') ||
-          e.toString().contains('not-found') ||
-          e.toString().contains('unavailable')) {
-        try {
-          print(
-            'Tentativo di creazione documento utente e retry per fornitore...',
-          );
-          await _ensureUserDocument();
-          await collection.add(supplierModel.toMap());
-          print('Fornitore aggiunto con successo dopo retry!');
-        } catch (retryError) {
-          print('Errore nel retry fornitore: $retryError');
-          throw Exception(
-            'Impossibile aggiungere il fornitore dopo il retry: $retryError',
-          );
-        }
-      } else {
-        throw Exception('Errore nell\'aggiunta del fornitore: $e');
+      await _userSuppliersCollection.add(supplierData);
+      if (kDebugMode) {
+        print('✅ Fornitore aggiunto: ${supplier.nome}');
       }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'aggiunta del fornitore: $e');
+      }
+      throw Exception('Errore nell\'aggiunta del fornitore: $e');
     }
   }
 
   /// Recupera tutti i fornitori dell'utente corrente come stream
   Stream<List<Fornitore>> fetchSuppliers() {
-    final collection = _userSuppliersCollection;
-    if (collection == null) {
+    final userId = _currentUserId;
+    if (userId == null) {
       return Stream.value([]); // Return empty list if user not authenticated
     }
-    return collection.snapshots().map(
+
+    return _userSuppliersCollection.snapshots().map(
       (snapshot) =>
           snapshot.docs
               .map((doc) => FornitoreModel.fromFirestore(doc))
@@ -185,24 +165,38 @@ class FirestoreService {
     );
   }
 
-  /// Aggiorna un fornitore nella collezione specifica dell'utente
+  /// Aggiorna un fornitore nella collezione suppliers dell'utente
   Future<void> updateSupplier(Fornitore supplier) async {
-    await _ensureUserDocument();
-    final collection = _userSuppliersCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
-    }
+    await _ensureUserDocumentExists();
+
     final supplierModel = FornitoreModel.fromEntity(supplier);
-    return collection.doc(supplier.id).update(supplierModel.toMap());
+    final supplierData = supplierModel.toMap();
+
+    try {
+      await _userSuppliersCollection.doc(supplier.id).update(supplierData);
+      if (kDebugMode) {
+        print('✅ Fornitore aggiornato: ${supplier.nome}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'aggiornamento del fornitore: $e');
+      }
+      throw Exception('Errore nell\'aggiornamento del fornitore: $e');
+    }
   }
 
-  /// Elimina un fornitore dalla collezione specifica dell'utente
+  /// Elimina un fornitore dalla collezione suppliers dell'utente
   Future<void> deleteSupplier(String id) async {
-    await _ensureUserDocument();
-    final collection = _userSuppliersCollection;
-    if (collection == null) {
-      throw Exception('Utente non autenticato');
+    try {
+      await _userSuppliersCollection.doc(id).delete();
+      if (kDebugMode) {
+        print('✅ Fornitore eliminato: $id');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'eliminazione del fornitore: $e');
+      }
+      throw Exception('Errore nell\'eliminazione del fornitore: $e');
     }
-    return collection.doc(id).delete();
   }
 }

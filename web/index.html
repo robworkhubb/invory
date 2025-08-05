@@ -16,7 +16,7 @@
   <meta name="msapplication-config" content="browserconfig.xml">
 
   <!-- iOS meta tags & icons -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Invory">
   <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
@@ -32,6 +32,7 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
 
+    // Configurazione Firebase hardcoded (stessa di firebase_options.dart)
     const firebaseConfig = {
       apiKey: "AIzaSyDjoMnOeETgX5-8U97I_HjgJFI8NxItAcg",
       authDomain: "invory-b9a72.firebaseapp.com",
@@ -42,42 +43,124 @@
       measurementId: "G-MTDPNYBZG4"
     };
 
+    // Recupera le variabili aggiuntive dal window object (passate dal Dart)
+    const env = window.flutterConfiguration || {};
+    const vapidKey = env.VAPID_KEY || '';
+
+    console.log('🔧 Configurazione Firebase caricata');
+    console.log('   - VAPID_KEY: ' + (vapidKey ? '✅' : '❌'));
+
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const messaging = getMessaging(app);
 
-    // Richiesta permessi e generazione token FCM solo client-side
+    // Richiesta permessi e generazione token FCM
     async function requestNotificationPermission() {
       try {
+        console.log('🔔 Richiesta permessi notifiche...');
         const permission = await Notification.requestPermission();
+        console.log('🔔 Permesso notifiche:', permission);
+        
         if (permission === 'granted') {
+          if (!vapidKey) {
+            console.warn('⚠️ VAPID_KEY mancante. Le notifiche potrebbero non funzionare.');
+            return;
+          }
+          
+          console.log('🔔 Generazione token FCM...');
           const token = await getToken(messaging, {
-            vapidKey: 'BNWjU0ATK4OlVO_n8ybggAsPr8YFclPYrHNMQzyNt4LxIl_QJHrKT9gOdNNAJdDxNV5XMZtsS1WsSccwuFIU-yo'
+            vapidKey: vapidKey
           });
-          console.log('FCM Token:', token);
-          // Salva il token nel localStorage per l'app Flutter
-          localStorage.setItem('fcm_token', token);
-          // Nessun invio a backend, la gestione è tutta client-side
+          
+          if (token) {
+            console.log('✅ FCM Token generato:', token.substring(0, 20) + '...');
+            localStorage.setItem('fcm_token', token);
+            
+            // Notifica Flutter che il token è pronto
+            if (window.flutterConfiguration && window.flutterConfiguration.onTokenReceived) {
+              window.flutterConfiguration.onTokenReceived(token);
+            }
+          } else {
+            console.error('❌ Impossibile generare token FCM');
+          }
+        } else {
+          console.warn('⚠️ Permesso notifiche negato:', permission);
         }
       } catch (error) {
-        console.error('Error getting notification permission:', error);
+        console.error('❌ Errore nella richiesta permessi notifiche:', error);
       }
     }
 
     // Gestione notifiche in foreground (web native)
     onMessage(messaging, (payload) => {
-      console.log('Message received:', payload);
+      console.log('🔔 Notifica ricevuta in foreground:', payload);
+      
       // Mostra notifica locale
       if (Notification.permission === 'granted') {
-        new Notification(payload.notification.title, {
+        const notification = new Notification(payload.notification.title, {
           body: payload.notification.body,
-          icon: '/invory/icons/Icon-192.png'
+          icon: '/invory/icons/Icon-192.png',
+          tag: 'invory_notification_' + Date.now(),
+          requireInteraction: true,
+          actions: [
+            {
+              action: 'open',
+              title: 'Apri',
+              icon: '/invory/icons/Icon-192.png'
+            },
+            {
+              action: 'close',
+              title: 'Chiudi'
+            }
+          ]
         });
+
+        notification.onclick = function(event) {
+          console.log('🔔 Notifica locale cliccata');
+          notification.close();
+          window.focus();
+        };
       }
     });
 
-    // Richiedi permessi all'avvio
-    window.addEventListener('load', requestNotificationPermission);
+    // Registra il Service Worker per FCM
+    async function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        try {
+          console.log('🔧 Registrazione Service Worker...');
+          const registration = await navigator.serviceWorker.register('/invory/firebase-messaging-sw.js', {
+            scope: '/invory/'
+          });
+          console.log('✅ Service Worker registrato:', registration);
+          
+          // Aspetta che il service worker sia attivo
+          await navigator.serviceWorker.ready;
+          console.log('✅ Service Worker pronto');
+          
+          // Richiedi permessi dopo che il service worker è pronto
+          await requestNotificationPermission();
+          
+        } catch (error) {
+          console.error('❌ Errore registrazione Service Worker:', error);
+          
+          // Fallback: richiedi permessi anche se il service worker fallisce
+          await requestNotificationPermission();
+        }
+      } else {
+        console.warn('⚠️ Service Worker non supportato');
+        await requestNotificationPermission();
+      }
+    }
+
+    // Inizializza tutto quando la pagina è caricata
+    window.addEventListener('load', registerServiceWorker);
+    
+    // Esponi le funzioni per Flutter
+    window.firebaseMessaging = {
+      getToken: () => localStorage.getItem('fcm_token'),
+      requestPermission: requestNotificationPermission,
+      onTokenReceived: null
+    };
   </script>
 
   <!-- PWA Install Prompt -->
@@ -91,34 +174,37 @@
       deferredPrompt = e;
       // Marca che il prompt è disponibile
       localStorage.setItem('beforeinstallprompt', 'true');
-      console.log('PWA install prompt disponibile');
+      console.log('📱 PWA install prompt disponibile');
       // Non mostrare automaticamente, lascia che l'utente lo richieda
     });
+    
     // Gestisce l'evento appinstalled
     window.addEventListener('appinstalled', (evt) => {
       // Pulisci il localStorage quando l'app è installata
       localStorage.removeItem('beforeinstallprompt');
       deferredPrompt = null;
-      console.log('App installata con successo!');
+      console.log('✅ App installata con successo!');
     });
+    
     // Controlla se l'app è già installata al caricamento
     window.addEventListener('load', () => {
       if (window.matchMedia('(display-mode: standalone)').matches) {
         // L'app è già installata, rimuovi il prompt
         localStorage.removeItem('beforeinstallprompt');
         deferredPrompt = null;
-        console.log('App già installata');
+        console.log('📱 App già installata');
       }
     });
+    
     // Funzione per mostrare il prompt manualmente
     window.showInstallPrompt = function() {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
           if (choiceResult.outcome === 'accepted') {
-            console.log('Utente ha accettato l\'installazione');
+            console.log('✅ Utente ha accettato l\'installazione');
           } else {
-            console.log('Utente ha rifiutato l\'installazione');
+            console.log('❌ Utente ha rifiutato l\'installazione');
           }
           deferredPrompt = null;
           localStorage.removeItem('beforeinstallprompt');

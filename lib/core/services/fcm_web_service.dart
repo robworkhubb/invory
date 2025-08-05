@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:js' as js;
 
 class FCMWebService {
   static final FCMWebService _instance = FCMWebService._internal();
@@ -12,6 +13,110 @@ class FCMWebService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  String? _currentToken;
+  bool _isInitialized = false;
+
+  /// Inizializza il servizio web
+  Future<void> initialize() async {
+    if (_isInitialized) {
+      if (kDebugMode) {
+        print('🔧 FCM Web Service già inizializzato');
+      }
+      return;
+    }
+
+    try {
+      if (kDebugMode) {
+        print('🔧 Inizializzazione servizio notifiche web...');
+      }
+
+      // Richiedi permessi per le notifiche
+      if (html.Notification.permission == 'default') {
+        final permission = await html.Notification.requestPermission();
+        if (kDebugMode) {
+          print('🔔 Permesso notifiche web: $permission');
+        }
+      }
+
+      // Genera e salva l'ID del dispositivo se non esiste
+      final deviceId = _getDeviceId();
+      if (html.window.localStorage['deviceId'] == null) {
+        html.window.localStorage['deviceId'] = deviceId;
+        if (kDebugMode) {
+          print(
+            '📱 Nuovo ID dispositivo generato: ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId}',
+          );
+        }
+      }
+
+      // Ottieni il token FCM per il web
+      await _getAndSaveToken();
+
+      // Configura il listener per le notifiche in foreground
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        if (kDebugMode) {
+          print(
+            '🔔 Notifica ricevuta in foreground: ${message.notification?.title}',
+          );
+        }
+        _showLocalNotification(message);
+      });
+
+      // Configura il listener per i cambiamenti del token
+      _messaging.onTokenRefresh.listen((newToken) {
+        if (kDebugMode) {
+          print('🔄 Token FCM aggiornato');
+        }
+        _currentToken = newToken;
+        saveToken(newToken);
+      });
+
+      _isInitialized = true;
+
+      if (kDebugMode) {
+        print('✅ Servizio FCM Web inizializzato con successo');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'inizializzazione servizio web: $e');
+      }
+    }
+  }
+
+  /// Ottieni e salva il token FCM
+  Future<void> _getAndSaveToken() async {
+    try {
+      // Prova prima dal localStorage (se già generato dal JavaScript)
+      final storedToken = html.window.localStorage['fcm_token'];
+      if (storedToken != null && storedToken.isNotEmpty) {
+        _currentToken = storedToken;
+        await saveToken(storedToken);
+        if (kDebugMode) {
+          print('✅ Token FCM recuperato dal localStorage');
+        }
+        return;
+      }
+
+      // Altrimenti, ottieni il token tramite Firebase Messaging
+      final fcmToken = await _messaging.getToken();
+      if (fcmToken != null) {
+        _currentToken = fcmToken;
+        await saveToken(fcmToken);
+        if (kDebugMode) {
+          print('✅ Token FCM generato tramite Firebase Messaging');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Impossibile ottenere token FCM');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nell\'ottenimento del token FCM: $e');
+      }
+    }
+  }
 
   /// Genera un ID univoco per il browser
   String _generateBrowserId() {
@@ -31,66 +136,13 @@ class FCMWebService {
     return html.window.localStorage['deviceId'] ?? _generateBrowserId();
   }
 
-  /// Inizializza il servizio web
-  Future<void> initialize() async {
-    try {
-      if (kDebugMode) {
-        print('Inizializzazione servizio notifiche web...');
-      }
-
-      // Richiedi permessi per le notifiche
-      if (html.Notification.permission == 'default') {
-        final permission = await html.Notification.requestPermission();
-        if (kDebugMode) {
-          print('Permesso notifiche web: $permission');
-        }
-      }
-
-      // Genera e salva l'ID del dispositivo se non esiste
-      final deviceId = _getDeviceId();
-      if (html.window.localStorage['deviceId'] == null) {
-        html.window.localStorage['deviceId'] = deviceId;
-        if (kDebugMode) {
-          print(
-            'Nuovo ID dispositivo generato: ${deviceId.length > 20 ? deviceId.substring(0, 20) + '...' : deviceId}',
-          );
-        }
-      }
-
-      // Ottieni il token FCM per il web
-      final fcmToken = await _messaging.getToken();
-      if (fcmToken != null) {
-        await saveToken(fcmToken);
-        if (kDebugMode) {
-          print(
-            'Token FCM web salvato: ${fcmToken.length > 20 ? fcmToken.substring(0, 20) + '...' : fcmToken}',
-          );
-        }
-      }
-
-      // Configura il listener per le notifiche in background
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        if (kDebugMode) {
-          print(
-            'Notifica ricevuta in foreground: ${message.notification?.title}',
-          );
-        }
-        _showLocalNotification(message);
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        print('Errore nell\'inizializzazione servizio web: $e');
-      }
-    }
-  }
-
   /// Salva il token FCM nel database
   Future<void> saveToken(String token) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
         if (kDebugMode) {
-          print('Utente non autenticato, impossibile salvare il token FCM');
+          print('⚠️ Utente non autenticato, impossibile salvare il token FCM');
         }
         return;
       }
@@ -107,16 +159,18 @@ class FCMWebService {
             'lastUsed': FieldValue.serverTimestamp(),
             'platform': 'web',
             'isActive': true,
+            'userAgent': html.window.navigator.userAgent,
+            'platform': html.window.navigator.platform,
           }, SetOptions(merge: true));
 
       if (kDebugMode) {
         print(
-          'Token FCM web salvato: ${token.length > 20 ? token.substring(0, 20) + '...' : token}',
+          '✅ Token FCM web salvato: ${token.length > 20 ? token.substring(0, 20) + '...' : token}',
         );
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Errore nel salvataggio del token FCM web: $e');
+        print('❌ Errore nel salvataggio del token FCM web: $e');
       }
     }
   }
@@ -141,12 +195,13 @@ class FCMWebService {
             (doc) => {
               'token': doc.data()['token'],
               'deviceId': doc.data()['deviceId'],
+              'lastUsed': doc.data()['lastUsed'],
             },
           )
           .toList();
     } catch (e) {
       if (kDebugMode) {
-        print('Errore nel recupero dei token web: $e');
+        print('❌ Errore nel recupero dei token web: $e');
       }
       return [];
     }
@@ -304,8 +359,9 @@ class FCMWebService {
 
       notification.onClick.listen((event) {
         if (kDebugMode) {
-          print('Notifica locale cliccata: ${message.notification?.title}');
+          print('🔔 Notifica locale cliccata: ${message.notification?.title}');
         }
+        notification.close();
       });
     }
   }
@@ -319,7 +375,7 @@ class FCMWebService {
     try {
       if (kDebugMode) {
         print('🔔 INVIO NOTIFICA SCORTA BASSA per: $productName');
-        print(' Quantità: $currentQuantity, Soglia: $threshold');
+        print('   Quantità: $currentQuantity, Soglia: $threshold');
         print('📱 Dispositivo corrente: ${_getDeviceId()}');
       }
 
@@ -382,6 +438,19 @@ class FCMWebService {
 
   /// Mostra prompt di installazione PWA
   Future<void> showInstallPrompt() async {
-    // Implementazione del prompt di installazione PWA
+    try {
+      // Chiama la funzione JavaScript per mostrare il prompt
+      js.context.callMethod('showInstallPrompt');
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nel mostrare il prompt di installazione: $e');
+      }
+    }
   }
+
+  /// Ottieni il token corrente
+  String? get currentToken => _currentToken;
+
+  /// Verifica se il servizio è inizializzato
+  bool get isInitialized => _isInitialized;
 }

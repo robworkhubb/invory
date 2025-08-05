@@ -1,132 +1,223 @@
-# 📦 Invory
+# Invory - Gestione Magazzino Intelligente
 
-**Invory** è un'app mobile Flutter progettata per la gestione di un piccolo magazzino. Permette di aggiungere, monitorare e ricevere notifiche sui prodotti in stock. L'app è pensata per essere semplice, veloce ed efficace, ideale per negozi, laboratori o piccole attività.
+Organizza, Controlla, Rifornisci - Gestione intelligente del magazzino con notifiche push in tempo reale.
 
-## 🚀 Funzionalità principali
+## 🚀 Caratteristiche
 
-- ✅ Aggiunta rapida dei prodotti con nome, quantità, soglia minima, descrizione.
-- 📉 Visualizzazione prodotti esauriti o sotto soglia.
-- 🔔 Notifiche locali automatiche sui prodotti critici.
-- 🏠 Interfaccia divisa in 3 schermate principali: Home, Aggiungi, Prodotti.
-- 📆 Data corrente mostrata nella home.
-- 📱 UI moderna e intuitiva.
-- 🔄 Aggiornamento in tempo reale dopo l'aggiunta o modifica dei prodotti.
+- ✅ **Gestione Prodotti**: Aggiungi, modifica, elimina prodotti con soglie di scorta
+- ✅ **Gestione Fornitori**: Mantieni una lista dei tuoi fornitori
+- ✅ **Notifiche Push**: Ricevi notifiche quando i prodotti sono sotto scorta
+- ✅ **Multi-Device**: Sincronizzazione automatica tra dispositivi
+- ✅ **PWA**: Installabile come app nativa
+- ✅ **Responsive**: Ottimizzato per desktop, tablet e mobile
 
-## 📸 Screenshot
+## 🔧 Configurazione
 
-*(Inserisci qui gli screenshot delle tre schermate principali: Home, Aggiungi prodotto, Lista prodotti)*
+### 1. Variabili d'Ambiente
 
-## 📁 Struttura del progetto
+Crea un file `.env` nella root del progetto con le seguenti variabili:
 
-lib/
-├── main.dart
-├── models/
-│ └── product.dart
-├── services/
-│ └── notification_service.dart
-├── screens/
-│ ├── home_page.dart
-│ ├── add_product_page.dart
-│ └── product_list_page.dart
-├── widgets/
-│ └── product_card.dart
-└── providers/
-└── product_provider.dart
+```env
+# Firebase Configuration
+FIREBASE_API_KEY=your_firebase_api_key
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+FIREBASE_APP_ID=your_app_id
+FIREBASE_MEASUREMENT_ID=your_measurement_id
 
-markdown
-Copia
-Modifica
-
-## 🔔 Notifiche
-
-Le notifiche push **locali** vengono attivate all'avvio dell'app (nel `initState` della `HomePage`) e avvisano l'utente in caso di:
-
-- ❌ Prodotti esauriti (quantità = 0)
-- ⚠️ Prodotti sotto soglia (quantità ≤ soglia minima)
-
-Le notifiche usano la libreria [`flutter_local_notifications`](https://pub.dev/packages/flutter_local_notifications).
-
-# Funzionalità Analitiche
-
-L'app include una dashboard analitica che mostra:
-- **Top 5 prodotti consumati** (grafico a barre)
-- **Distribuzione per categoria** (grafico a torta)
-- **Spesa mensile totale** (grafico a linee)
-
-## Come vengono calcolate le metriche
-
-- **Top 5 prodotti consumati**: vengono ordinati tutti i prodotti in base al campo `consumati` (totale quantità consumata) e vengono mostrati i primi 5.
-- **Distribuzione per categoria**: per ogni categoria, si somma il campo `consumati` di tutti i prodotti appartenenti a quella categoria. Il risultato è la distribuzione percentuale dei consumi per categoria.
-- **Spesa mensile totale**: per ogni prodotto, si calcola `consumati * prezzoUnitario` e si aggrega per mese (usando il campo `ultimaModifica` come riferimento temporale). Il risultato è la spesa totale per ogni mese.
-
-I dati sono aggregati dal provider direttamente dalla collezione prodotti e visualizzati con grafici moderni tramite la libreria fl_chart. Le metriche si aggiornano in tempo reale ogni volta che i dati dei prodotti cambiano.
-
-Queste funzioni permettono di monitorare rapidamente l'andamento del magazzino e ottimizzare gli acquisti.
-
-🛠️ Come avviare l'app
-Clona il repository:
-git clone https://github.com/tuo-username/stockly.git
-
-Installa le dipendenze:
-flutter pub get
-
-Avvia l'app:
-flutter run
-
-👨‍💻 Autore
-Sviluppato con ❤️ da Roberto – Studente e sviluppatore Flutter junior.
-
-Se ti piace il progetto, lascia una ⭐ su GitHub o contattami per collaborazioni!
-
-# Changelog 2025
-
-- Refactoring modello Product: aggiunti categoria, prezzoUnitario, consumati, ultimaModifica.
-- Dashboard analitica: top 5 prodotti consumati, distribuzione per categoria, spesa mensile totale.
-- Provider aggiornato per aggregazioni e performance.
-- UI e form modernizzati e coerenti.
-- Query Firestore ottimizzate e coerenti con il nuovo modello.
-- Rimozione campo fornitore e metodi toJson/fromJson.
-- Best practice di sviluppo e manutenzione documentate.
-
-# Aggiornamenti 2025
-
-- L'app si chiama ora **Stockly**.
-- Refactoring completo del modello Product: aggiunti categoria, prezzoUnitario, consumati, ultimaModifica.
-- Dashboard analitica con grafici moderni (fl_chart): top 5 prodotti consumati, distribuzione per categoria, spesa mensile totale.
-- Provider aggiornato per aggregazioni e performance.
-- UI e form modernizzati e coerenti.
-- Query Firestore ottimizzate e coerenti con il nuovo modello.
-- Tutti gli import ora sono `package:stockely/...`.
-
-# Esempi di utilizzo funzioni
-
-## Ottenere metriche dal provider
-
-```dart
-final provider = Provider.of<ProductProvider>(context);
-
-// Top 5 prodotti consumati
-final topProducts = provider.topConsumati();
-
-// Distribuzione per categoria
-final categoryDist = provider.distribuzionePerCategoria();
-
-// Spesa mensile totale
-final monthlyExpense = provider.spesaMensile();
+# FCM Configuration
+VAPID_KEY=your_vapid_key
+FCM_PROJECT_ID=your_project_id
+FCM_CLIENT_EMAIL=your_service_account_email
+FCM_PRIVATE_KEY=your_private_key
 ```
 
-## Modificare/estendere le funzioni
+### 2. Firebase Setup
 
-- Per cambiare la logica di aggregazione, modifica i metodi in `product_provider.dart`.
-- Per aggiungere nuove metriche, crea nuovi metodi che aggregano i dati della lista `prodotti`.
-- Per visualizzare nuove metriche nella dashboard, aggiungi una nuova Card e il relativo grafico in `dashboard_page.dart`.
+1. Crea un progetto Firebase
+2. Abilita Authentication con Email/Password
+3. Crea un database Firestore
+4. Configura le regole Firestore (vedi `firestore.rules`)
+5. Genera una chiave VAPID per le notifiche web
+6. Crea un service account per FCM
 
-Esempio: aggiungere una metrica "prodotti mai consumati":
-```dart
-List<Product> maiConsumati() {
-  return prodotti.where((p) => p.consumati == 0).toList();
-}
+### 3. Struttura Database
+
+Il database utilizza la seguente struttura:
+
+```
+users/
+  {uid}/
+    products/
+      {productId}/
+        name: string
+        category: string
+        quantity: number
+        threshold: number
+        price: number
+        consumed: number
+        lastModified: timestamp
+    suppliers/
+      {supplierId}/
+        name: string
+        email: string
+        phone: string
+        address: string
+    tokens/
+      {tokenId}/
+        token: string
+        deviceId: string
+        platform: string
+        createdAt: timestamp
+        lastUsed: timestamp
+        isActive: boolean
+    notifications/
+      {notificationId}/
+        title: string
+        body: string
+        data: map
+        timestamp: timestamp
+        read: boolean
+        targetDeviceId: string
+        notificationId: string
+        sourceDeviceId: string
 ```
 
-Integra la funzione nella dashboard come vuoi!
+## 🏗️ Build e Deploy
+
+### Build per Web (GitHub Pages)
+
+```bash
+# Build ottimizzato per GitHub Pages
+flutter build web --base-href /invory/ --dart-define=FIREBASE_API_KEY=your_key --dart-define=VAPID_KEY=your_vapid_key
+
+# Oppure usa lo script di build
+./build-web.bat
+```
+
+### Build per Mobile
+
+```bash
+# Android
+flutter build apk --release
+
+# iOS
+flutter build ios --release
+```
+
+## 📱 Sistema di Notifiche
+
+### Come Funziona
+
+1. **Registrazione Token**: Al login, ogni dispositivo registra il proprio token FCM
+2. **Salvataggio**: I token vengono salvati in `users/{uid}/tokens/{token}`
+3. **Notifiche**: Quando un prodotto viene modificato, vengono inviate notifiche a tutti gli altri dispositivi
+4. **Esclusione**: Il dispositivo che ha fatto la modifica non riceve la notifica
+
+### Tipi di Notifiche
+
+- **Scorta Bassa**: Quando la quantità scende sotto la soglia
+- **Prodotto Esaurito**: Quando la quantità raggiunge zero
+- **Notifiche Personalizzate**: Per eventi specifici
+
+## 🔒 Sicurezza
+
+- Autenticazione Firebase Auth
+- Regole Firestore per isolamento dati per utente
+- Token FCM sicuri e gestiti automaticamente
+- Nessun dato condiviso tra utenti
+
+## 🚀 Deploy su GitHub Pages
+
+1. **Configura GitHub Actions** (opzionale):
+   ```yaml
+   name: Deploy to GitHub Pages
+   on:
+     push:
+       branches: [ main ]
+   jobs:
+     build_and_deploy:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v2
+         - uses: subosito/flutter-action@v2
+         - run: flutter build web --base-href /invory/
+         - uses: peaceiris/actions-gh-pages@v3
+           with:
+             github_token: ${{ secrets.GITHUB_TOKEN }}
+             publish_dir: ./build/web
+   ```
+
+2. **Deploy Manuale**:
+   - Esegui `flutter build web --base-href /invory/`
+   - Copia il contenuto di `build/web/` nella branch `gh-pages`
+   - Abilita GitHub Pages nelle impostazioni del repository
+
+## 🧪 Testing
+
+### Test Notifiche
+
+```dart
+// Usa FCMTestHelper per testare le notifiche
+final testHelper = FCMTestHelper();
+
+// Test notifica singola
+await testHelper.sendTestNotification();
+
+// Test notifiche multiple
+await testHelper.sendMultipleTestNotifications();
+
+// Verifica stato sistema
+await testHelper.checkNotificationStatus();
+```
+
+## 📊 Performance
+
+- **Lazy Loading**: Caricamento ottimizzato dei dati
+- **Cache Intelligente**: Cache locale per migliori performance
+- **Ottimizzazioni Web**: Bundle ridotto e ottimizzato
+- **Service Worker**: Cache offline e notifiche push
+
+## 🐛 Troubleshooting
+
+### Problemi Comuni
+
+1. **Service Worker 404**:
+   - Verifica che `firebase-messaging-sw.js` sia nella root di `web/`
+   - Controlla che il path sia corretto in `index.html`
+
+2. **Notifiche non funzionano**:
+   - Verifica le variabili d'ambiente
+   - Controlla i permessi del browser
+   - Verifica la configurazione VAPID
+
+3. **Errore di autenticazione**:
+   - Verifica le regole Firestore
+   - Controlla la configurazione Firebase
+
+## 📄 Licenza
+
+Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per i dettagli.
+
+## 🤝 Contributi
+
+I contributi sono benvenuti! Per favore:
+
+1. Fai un fork del progetto
+2. Crea una branch per la tua feature
+3. Committa le tue modifiche
+4. Fai un push alla branch
+5. Apri una Pull Request
+
+## 📞 Supporto
+
+Per supporto o domande:
+- Apri una issue su GitHub
+- Contatta il team di sviluppo
+
+---
+
+**Invory** - Organizza, Controlla, Rifornisci 🚀
 

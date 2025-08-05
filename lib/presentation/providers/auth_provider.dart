@@ -4,15 +4,24 @@ import '../../domain/entities/user.dart';
 import 'package:provider/provider.dart';
 import 'product_provider.dart';
 import 'supplier_provider.dart';
-import '../../core/services/notification_service.dart';
+import '../../core/services/notifications_service.dart';
+import '../../core/services/fcm_web_service.dart';
+import '../../core/services/fcm_notification_service.dart';
+import 'package:flutter/foundation.dart';
+import '../../core/di/injection_container.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthRepository _authRepository;
-  final INotificationService _notificationService;
+  final NotificationsService _notificationsService;
+  final FCMWebService _fcmWebService;
+  final FCMNotificationService _fcmNotificationService;
   User? _currentUser;
   bool _isLoading = false;
 
-  AuthProvider(this._authRepository, this._notificationService) {
+  AuthProvider(this._authRepository)
+    : _notificationsService = sl<NotificationsService>(),
+      _fcmWebService = sl<FCMWebService>(),
+      _fcmNotificationService = sl<FCMNotificationService>() {
     _currentUser = _authRepository.getCurrentUser();
   }
 
@@ -27,11 +36,9 @@ class AuthProvider with ChangeNotifier {
     try {
       _currentUser = await _authRepository.login(email, password);
 
-      // Salva il token FCM pendente dopo l'autenticazione
-      try {
-        await _notificationService.savePendingToken();
-      } catch (e) {
-        print('Errore nel salvataggio del token FCM: $e');
+      if (_currentUser != null) {
+        // Salva i token FCM pendenti dopo l'autenticazione
+        await _saveFCMTokensAfterLogin();
       }
 
       notifyListeners();
@@ -43,6 +50,36 @@ class AuthProvider with ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Salva i token FCM dopo il login
+  Future<void> _saveFCMTokensAfterLogin() async {
+    try {
+      if (kDebugMode) {
+        print(
+          '🔐 Salvataggio token FCM dopo login per: ${_currentUser?.email}',
+        );
+      }
+
+      // Salva i token pendenti dal NotificationsService
+      await _notificationsService.savePendingTokens();
+
+      // Per il web, salva anche tramite FCMWebService
+      if (kIsWeb) {
+        await _fcmWebService.initialize();
+      } else {
+        // Per mobile, reinizializza FCM
+        await _fcmNotificationService.initialize();
+      }
+
+      if (kDebugMode) {
+        print('✅ Token FCM salvati con successo dopo login');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Errore nel salvataggio dei token FCM dopo login: $e');
+      }
+    }
   }
 
   Future<void> logout(BuildContext context) async {

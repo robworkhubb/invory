@@ -1,10 +1,6 @@
-firebase-service-account.json
-sw.js
-invory-b9a72-firebase-adminsdk-fbsvc-7f58979a15.json
-*.json
-node_modules/
+# Variabili d'ambiente
 .env
-invory-b9a72-firebase-adminsdk-fbsvc-7f58979a15.json
-*.json
-node_modules/
-.env
+.env.local
+.env.production
+.env.development
+build-config.env

@@ -18,8 +18,10 @@ import '../../domain/usecases/supplier/get_suppliers_usecase.dart';
 import '../../domain/usecases/supplier/add_supplier_usecase.dart';
 import '../../domain/usecases/supplier/update_supplier_usecase.dart';
 import '../../domain/usecases/supplier/delete_supplier_usecase.dart';
-import '../services/notification_service.dart';
+import '../services/notifications_service.dart';
 import '../services/fcm_notification_service.dart';
+import '../services/fcm_web_service.dart';
+import '../services/stock_notification_service.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/product_provider.dart';
 import '../../presentation/providers/supplier_provider.dart';
@@ -31,11 +33,14 @@ Future<void> init() async {
   sl.registerLazySingleton<FirebaseAuthService>(() => FirebaseAuthService());
   sl.registerLazySingleton<FirestoreService>(() => FirestoreService());
 
-  // Services
-  sl.registerLazySingleton<INotificationService>(() => NotificationService());
-  sl.registerLazySingleton<NotificationService>(() => NotificationService());
+  // Services - Registrazione dei servizi di notifica
+  sl.registerLazySingleton<NotificationsService>(() => NotificationsService());
   sl.registerLazySingleton<FCMNotificationService>(
     () => FCMNotificationService(),
+  );
+  sl.registerLazySingleton<FCMWebService>(() => FCMWebService());
+  sl.registerLazySingleton<StockNotificationService>(
+    () => StockNotificationService(),
   );
 
   // Use cases
@@ -60,8 +65,8 @@ Future<void> init() async {
     () => SupplierRepositoryImpl(sl()),
   );
 
-  // Providers
-  sl.registerFactory(() => AuthProvider(sl(), sl()));
-  sl.registerFactory(() => ProductProvider(sl(), sl()));
+  // Providers - Aggiornati per usare i nuovi servizi
+  sl.registerFactory(() => AuthProvider(sl()));
+  sl.registerFactory(() => ProductProvider(sl(), sl(), sl()));
   sl.registerFactory(() => SupplierProvider(sl()));
 }
