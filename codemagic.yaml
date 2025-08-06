@@ -1,9 +1,40 @@
 workflows:
+  invory_ios_release:
+    name: Invory iOS Release
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        APP_ID: "com.invory.app"
+      groups:
+        - app_store_credentials
+        - ios_codesign_credentials
+    scripts:
+      - name: Clean previous builds
+        script: |
+          flutter clean
 
-    sample-workflow:
+      - name: Install dependencies
+        script: |
+          flutter pub get
 
-        name: Codemagic Sample Workflow
+      - name: Flutter analyze
+        script: |
+          flutter analyze
 
-        max_build_duration: 120
+      - name: Build iOS release
+        script: |
+          flutter build ios --release --no-codesign
 
-        instance_type: mac_mini_m2
+    artifacts:
+      - build/ios/iphoneos/*.app
+      - build/ios/ipa/*.ipa
+      - flutter_drive.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false # Metti true se vuoi caricarla direttamente
