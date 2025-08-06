@@ -5,12 +5,20 @@ workflows:
     environment:
       flutter: stable
       xcode: 15.0
-      cocoapods: 1.16.2
     scripts:
+      - name: Fix CocoaPods manually
+        script: |
+          sudo gem install cocoapods
+          pod setup
+
+      - name: Clean project
+        script: |
+          flutter clean
+
       - name: Install dependencies
         script: |
           flutter pub get
-
+          
       - name: Build iOS release (no codesign)
         script: |
           flutter build ios --release --no-codesign
