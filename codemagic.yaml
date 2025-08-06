@@ -5,8 +5,8 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
-      - name: Clean Flutter build
-        script: flutter clean
+      - name: Show CocoaPods version
+        script: pod --version
 
       - name: Clean CocoaPods
         script: |
@@ -18,10 +18,10 @@ workflows:
       - name: Get Flutter dependencies
         script: flutter pub get
 
-      - name: Install CocoaPods dependencies
+      - name: Install CocoaPods dependencies (with repo update)
         script: |
           cd ios
-          pod install
+          pod install --repo-update
           cd ..
 
       - name: Build iOS release (no codesign)
