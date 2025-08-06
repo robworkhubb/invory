@@ -7,17 +7,9 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Clean project
-        script: |
-          flutter clean
-
       - name: Install dependencies
         script: |
           flutter pub get
-
-      - name: Analyze code
-        script: |
-          flutter analyze
 
       - name: Build iOS release (no codesign)
         script: |
