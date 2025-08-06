@@ -3,26 +3,10 @@ workflows:
     name: Invory iOS Unsigned Build
     environment:
       flutter: stable
-      xcode: latest
+      xcode: latest  # meglio forzare una versione stabile che non sia l'ultima per ora
     scripts:
-      - name: Show CocoaPods version
-        script: pod --version
-
-      - name: Clean CocoaPods
-        script: |
-          cd ios
-          pod deintegrate
-          pod cache clean --all
-          cd ..
-
       - name: Get Flutter dependencies
         script: flutter pub get
-
-      - name: Install CocoaPods dependencies (with repo update)
-        script: |
-          cd ios
-          pod install --repo-update
-          cd ..
 
       - name: Build iOS release (no codesign)
         script: flutter build ios --release --no-codesign
