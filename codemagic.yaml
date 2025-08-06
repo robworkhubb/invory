@@ -1,20 +1,13 @@
 workflows:
-  invory_ios_release:
-    name: Invory iOS Release
+  invory_ios_unsigned:
+    name: Invory iOS Unsigned Build
     max_build_duration: 60
     environment:
       flutter: stable
       xcode: latest
       cocoapods: default
-      vars:
-        APP_ID: "com.tuodominio.invory"
-      groups:
-        - app_store_credentials
-        - ios_codesign_credentials
-    integrations:
-      app_store_connect: integration
     scripts:
-      - name: Clean previous builds
+      - name: Clean project
         script: |
           flutter clean
 
@@ -22,21 +15,16 @@ workflows:
         script: |
           flutter pub get
 
-      - name: Flutter analyze
+      - name: Analyze code
         script: |
           flutter analyze
 
-      - name: Build iOS release
+      - name: Build iOS release (no codesign)
         script: |
           flutter build ios --release --no-codesign
 
     artifacts:
       - build/ios/iphoneos/*.app
       - build/ios/ipa/*.ipa
+      - build/ios/ipa/*.dSYM.zip
       - flutter_drive.log
-
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        submit_to_app_store: false
