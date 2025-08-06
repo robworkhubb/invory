@@ -1,12 +1,28 @@
 workflows:
-  invory_ios_build:
-    name: Invory iOS Build
+  invory_ios_unsigned:
+    name: Invory iOS Unsigned Build
     environment:
       flutter: stable
       xcode: latest
     scripts:
-      - name: Install dependencies
+      - name: Clean Flutter build
+        script: flutter clean
+
+      - name: Clean CocoaPods
+        script: |
+          cd ios
+          pod deintegrate
+          pod cache clean --all
+          cd ..
+
+      - name: Get Flutter dependencies
         script: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios
+          pod install
+          cd ..
 
       - name: Build iOS release (no codesign)
         script: flutter build ios --release --no-codesign
