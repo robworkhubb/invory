@@ -4,11 +4,11 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
-      xcode: 15.0
+      xcode: 14.3
     scripts:
       - name: Fix CocoaPods manually
         script: |
-          sudo gem install cocoapods
+          sudo gem install cocoapods -v 1.13.0
           pod setup
 
       - name: Clean project
