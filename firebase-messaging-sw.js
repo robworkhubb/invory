@@ -44,11 +44,15 @@ messaging.onBackgroundMessage((payload) => {
   console.log('🔔 Notifica ricevuta in background:', payload);
   
   try {
+    // Determina il path delle icone in base all'ambiente
+    const isLocalhost = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+    const iconPath = isLocalhost ? './icons/Icon-192.png' : '/invory/icons/Icon-192.png';
+    
     const notificationTitle = payload.notification?.title || 'Invory';
     const notificationOptions = {
       body: payload.notification?.body || '',
-      icon: '/invory/icons/Icon-192.png',
-      badge: '/invory/icons/Icon-192.png',
+      icon: iconPath,
+      badge: iconPath,
       tag: 'invory_notification',
       data: payload.data || {},
       requireInteraction: true,
@@ -56,7 +60,7 @@ messaging.onBackgroundMessage((payload) => {
         {
           action: 'open',
           title: 'Apri',
-          icon: '/invory/icons/Icon-192.png'
+          icon: iconPath
         },
         {
           action: 'close',
@@ -82,12 +86,16 @@ self.addEventListener('notificationclick', (event) => {
       return;
     }
     
+    // Determina il path corretto in base all'ambiente
+    const isLocalhost = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+    const appPath = isLocalhost ? './' : '/invory/';
+    
     // Apri l'app con retry - gestisci sia GitHub Pages che localhost
     event.waitUntil(
-      clients.openWindow('/invory/').catch(error => {
+      clients.openWindow(appPath).catch(error => {
         console.error('❌ Errore apertura app:', error);
         // Fallback: prova ad aprire la root
-        return clients.openWindow('/');
+        return clients.openWindow('./');
       })
     );
   } catch (error) {
@@ -102,11 +110,16 @@ self.addEventListener('push', (event) => {
   try {
     if (event.data) {
       const payload = event.data.json();
+      
+      // Determina il path delle icone in base all'ambiente
+      const isLocalhost = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+      const iconPath = isLocalhost ? './icons/Icon-192.png' : '/invory/icons/Icon-192.png';
+      
       const notificationTitle = payload.notification?.title || 'Invory';
       const notificationOptions = {
         body: payload.notification?.body || '',
-        icon: '/invory/icons/Icon-192.png',
-        badge: '/invory/icons/Icon-192.png',
+        icon: iconPath,
+        badge: iconPath,
         tag: 'invory_notification',
         data: payload.data || {},
         requireInteraction: true,
@@ -114,7 +127,7 @@ self.addEventListener('push', (event) => {
           {
             action: 'open',
             title: 'Apri',
-            icon: '/invory/icons/Icon-192.png'
+            icon: iconPath
           },
           {
             action: 'close',

@@ -159,11 +159,15 @@
       onMessage(messaging, (payload) => {
         console.log('🔔 Notifica ricevuta in foreground:', payload);
         
+        // Determina il path delle icone in base all'ambiente
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const iconPath = isLocalhost ? './icons/Icon-192.png' : '/invory/icons/Icon-192.png';
+        
         // Mostra notifica locale
         if (Notification.permission === 'granted') {
           const notification = new Notification(payload.notification.title, {
             body: payload.notification.body,
-            icon: '/invory/icons/Icon-192.png',
+            icon: iconPath,
             tag: 'invory_notification',
             data: payload.data || {}
           });
@@ -184,11 +188,17 @@
         try {
           console.log('🔧 Registrazione Service Worker...');
           
-          // Path corretto per GitHub Pages
+          // Determina il path e scope corretti in base all'ambiente
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           const swPath = './firebase-messaging-sw.js';
+          const scope = isLocalhost ? './' : '/invory/';
+          
+          console.log(`🔧 Ambiente: ${isLocalhost ? 'locale' : 'produzione'}`);
+          console.log(`🔧 Path SW: ${swPath}`);
+          console.log(`🔧 Scope: ${scope}`);
           
           const registration = await navigator.serviceWorker.register(swPath, {
-            scope: '/invory/'
+            scope: scope
           });
           
           console.log('✅ Service Worker registrato:', registration);
@@ -281,12 +291,13 @@
   </script>
 </head>
 <body>
+  <script src="flutter.js" defer></script>
   <script>
     window.addEventListener('load', function(ev) {
-      // Download main.dart.js
+      // Nuovo metodo di caricamento Flutter Web
       _flutter.loader.loadEntrypoint({
         serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
+          serviceWorkerVersion: '1.0.0', // Versione fissa o dinamica
         },
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine().then(function(appRunner) {
