@@ -15,69 +15,79 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Inizializza notifiche e salva il token FCM se necessario
-    NotificationService().initialize().then((_) {
-      NotificationService().savePendingToken();
-    });
+    _initializeNotifications();
+  }
+
+  /// Inizializza il sistema di notifiche
+  Future<void> _initializeNotifications() async {
+    try {
+      await NotificationService().initialize();
+      await NotificationService().savePendingToken();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Errore inizializzazione notifiche: $e');
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final dataOggi = DateFormat('d MMMM yyyy', 'it_IT').format(DateTime.now());
+    final currentDate = DateFormat('d MMMM yyyy', 'it_IT').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 2,
-        title: _AppBarTitle(dataOggi: dataOggi),
-        toolbarHeight: 70,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFF009688)),
-            onPressed: () async {
-              final authProvider = Provider.of<AuthProvider>(
-                context,
-                listen: false,
-              );
-              await authProvider.logout(context);
-              if (context.mounted) {
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder:
-                        (context, animation, secondaryAnimation) =>
-                            const LoginPage(),
-                    transitionsBuilder: (
-                      context,
-                      animation,
-                      secondaryAnimation,
-                      child,
-                    ) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
-                    transitionDuration: const Duration(milliseconds: 500),
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(currentDate),
       body: const _HomePageContent(),
     );
   }
+
+  /// Costruisce l'AppBar con titolo e pulsante logout
+  PreferredSizeWidget _buildAppBar(String currentDate) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 2,
+      title: _AppBarTitle(currentDate: currentDate),
+      toolbarHeight: 70,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout, color: Color(0xFF009688)),
+          onPressed: () => _handleLogout(context),
+        ),
+      ],
+    );
+  }
+
+  /// Gestisce il logout dell'utente
+  Future<void> _handleLogout(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.logout(context);
+    
+    if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    }
+  }
 }
 
+/// Widget per il titolo dell'AppBar
 class _AppBarTitle extends StatelessWidget {
-  final String dataOggi;
-  const _AppBarTitle({required this.dataOggi});
+  final String currentDate;
+  
+  const _AppBarTitle({required this.currentDate});
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +106,7 @@ class _AppBarTitle extends StatelessWidget {
         ),
         const Spacer(),
         Text(
-          dataOggi,
+          currentDate,
           style: const TextStyle(
             color: Color(0xFF757575),
             fontSize: 14,
@@ -108,133 +118,156 @@ class _AppBarTitle extends StatelessWidget {
   }
 }
 
+/// Contenuto principale della HomePage
 class _HomePageContent extends StatelessWidget {
   const _HomePageContent();
 
   @override
   Widget build(BuildContext context) {
-    final scrollPhysics =
-        Theme.of(context).platform == TargetPlatform.iOS
-            ? const BouncingScrollPhysics()
-            : const ClampingScrollPhysics();
+    final scrollPhysics = _getScrollPhysics(context);
 
     return RefreshIndicator(
-      onRefresh: () async {
-        final productProvider = Provider.of<ProductProvider>(
-          context,
-          listen: false,
-        );
-        productProvider.reloadProducts();
-        await productProvider.checkAndShowNotifications();
-      },
+      onRefresh: () => _handleRefresh(context),
       child: SingleChildScrollView(
         physics: scrollPhysics,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Banner automatico per installazione PWA (solo web)
             if (kIsWeb) const AutoInstallPrompt(),
-
-            Row(
-              children: [
-                Expanded(
-                  child: Selector<ProductProvider, int>(
-                    selector:
-                        (_, provider) =>
-                            provider.prodotti
-                                .where(
-                                  (p) =>
-                                      p.quantita < p.soglia && p.quantita > 0,
-                                )
-                                .length,
-                    builder:
-                        (_, value, __) => InfoBox(
-                          title: 'Sotto soglia',
-                          value: value,
-                          gradientColors: const [
-                            Color(0xFFFFE16D),
-                            Color(0xFFFFD54F),
-                          ],
-                          icon: Icons.warning_amber_rounded,
-                          iconColor: Colors.orange,
-                        ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Selector<ProductProvider, int>(
-                    selector:
-                        (_, provider) =>
-                            provider.prodotti
-                                .where((p) => p.quantita == 0)
-                                .length,
-                    builder:
-                        (_, value, __) => InfoBox(
-                          title: 'Esauriti',
-                          value: value,
-                          gradientColors: const [
-                            Color(0xFFFF8A80),
-                            Color(0xFFFF5252),
-                          ],
-                          icon: Icons.error,
-                          iconColor: Colors.red,
-                        ),
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: 16),
+            _buildStatisticsCards(),
             const SizedBox(height: 24),
-            Text(
-              'Prodotti da ordinare',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF212121),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Selector<ProductProvider, List<Product>>(
-              selector:
-                  (_, provider) =>
-                      provider.prodotti
-                          .where(
-                            (p) => p.quantita == 0 || p.quantita < p.soglia,
-                          )
-                          .toList(),
-              builder: (_, critici, __) {
-                if (critici.isEmpty) {
-                  return const _EmptyState();
-                }
-                return _CriticalProductsList(critici: critici);
-              },
-            ),
+            _buildCriticalProductsSection(),
             const SizedBox(height: 80),
           ],
         ),
       ),
     );
   }
+
+  /// Determina la fisica di scroll in base alla piattaforma
+  ScrollPhysics _getScrollPhysics(BuildContext context) {
+    return Theme.of(context).platform == TargetPlatform.iOS
+        ? const BouncingScrollPhysics()
+        : const ClampingScrollPhysics();
+  }
+
+  /// Gestisce il refresh della pagina
+  Future<void> _handleRefresh(BuildContext context) async {
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    productProvider.reloadProducts();
+    await productProvider.checkAndShowNotifications();
+  }
+
+  /// Costruisce le card statistiche
+  Widget _buildStatisticsCards() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildLowStockCard(),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildOutOfStockCard(),
+        ),
+      ],
+    );
+  }
+
+  /// Card per prodotti sotto soglia
+  Widget _buildLowStockCard() {
+    return Selector<ProductProvider, int>(
+      selector: (_, provider) => provider.prodotti
+          .where((p) => p.quantita < p.soglia && p.quantita > 0)
+          .length,
+      builder: (_, value, __) => InfoBox(
+        title: 'Sotto soglia',
+        value: value,
+        gradientColors: const [
+          Color(0xFFFFE16D),
+          Color(0xFFFFD54F),
+        ],
+        icon: Icons.warning_amber_rounded,
+        iconColor: Colors.orange,
+      ),
+    );
+  }
+
+  /// Card per prodotti esauriti
+  Widget _buildOutOfStockCard() {
+    return Selector<ProductProvider, int>(
+      selector: (_, provider) => provider.prodotti
+          .where((p) => p.quantita == 0)
+          .length,
+      builder: (_, value, __) => InfoBox(
+        title: 'Esauriti',
+        value: value,
+        gradientColors: const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+        ],
+        icon: Icons.error,
+        iconColor: Colors.red,
+      ),
+    );
+  }
+
+  /// Sezione prodotti critici
+  Widget _buildCriticalProductsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Prodotti da ordinare',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF212121),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildCriticalProductsList(),
+      ],
+    );
+  }
+
+  /// Lista prodotti critici
+  Widget _buildCriticalProductsList() {
+    return Selector<ProductProvider, List<Product>>(
+      selector: (_, provider) => provider.prodotti
+          .where((p) => p.quantita == 0 || p.quantita < p.soglia)
+          .toList(),
+      builder: (_, criticalProducts, __) {
+        if (criticalProducts.isEmpty) {
+          return const _EmptyState();
+        }
+        return _CriticalProductsList(criticalProducts: criticalProducts);
+      },
+    );
+  }
 }
 
+/// Lista dei prodotti critici
 class _CriticalProductsList extends StatelessWidget {
-  final List<Product> critici;
-  const _CriticalProductsList({required this.critici});
+  final List<Product> criticalProducts;
+  
+  const _CriticalProductsList({required this.criticalProducts});
 
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: critici.length,
+      itemCount: criticalProducts.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final prodotto = critici[index];
+        final product = criticalProducts[index];
         return ProductCard(
-          nome: prodotto.nome,
-          quantita: prodotto.quantita,
-          soglia: prodotto.soglia,
-          suggerita: -1, // visualizza solo nome e stato
+          nome: product.nome,
+          quantita: product.quantita,
+          soglia: product.soglia,
+          suggerita: -1, // Visualizza solo nome e stato
           showEditDelete: false,
         );
       },
@@ -242,6 +275,7 @@ class _CriticalProductsList extends StatelessWidget {
   }
 }
 
+/// Stato vuoto quando non ci sono prodotti critici
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
@@ -255,7 +289,7 @@ class _EmptyState extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

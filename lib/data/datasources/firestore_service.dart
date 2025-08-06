@@ -11,7 +11,15 @@ class FirestoreService {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   // Helper method to get current user ID
-  String? get _currentUserId => FirebaseAuth.instance.currentUser?.uid;
+  String? get _currentUserId {
+    final user = FirebaseAuth.instance.currentUser;
+    if (kDebugMode) {
+      print(
+        '🔍 Utente corrente: ${user?.uid ?? 'null'} (${user?.email ?? 'no email'})',
+      );
+    }
+    return user?.uid;
+  }
 
   // Helper method to get user products collection reference
   CollectionReference<Map<String, dynamic>> get _userProductsCollection {
@@ -83,13 +91,34 @@ class FirestoreService {
   Stream<List<Product>> fetchProducts() {
     final userId = _currentUserId;
     if (userId == null) {
+      if (kDebugMode) {
+        print('❌ Utente non autenticato, restituendo lista vuota');
+      }
       return Stream.value([]); // Return empty list if user not authenticated
     }
 
-    return _userProductsCollection.snapshots().map(
-      (snapshot) =>
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList(),
-    );
+    if (kDebugMode) {
+      print('🔍 Recuperando prodotti per utente: $userId');
+    }
+
+    return _userProductsCollection
+        .snapshots()
+        .map((snapshot) {
+          final products =
+              snapshot.docs
+                  .map((doc) => ProductModel.fromFirestore(doc))
+                  .toList();
+          if (kDebugMode) {
+            print('📦 Prodotti recuperati: ${products.length} elementi');
+          }
+          return products;
+        })
+        .handleError((error) {
+          if (kDebugMode) {
+            print('❌ Errore nel caricamento prodotti: $error');
+          }
+          return <Product>[]; // Return empty list on error
+        });
   }
 
   /// Aggiorna un prodotto nella collezione products dell'utente

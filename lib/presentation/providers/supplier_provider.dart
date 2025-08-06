@@ -65,7 +65,6 @@ class SupplierProvider with ChangeNotifier {
     }
   }
 
-  // Metodo per ricaricare i fornitori (utile per cambio account)
   void reloadSuppliers() {
     _suppliers = [];
     _loading = true;
@@ -73,7 +72,6 @@ class SupplierProvider with ChangeNotifier {
     _loadSuppliers();
   }
 
-  // Metodo per pulire i dati (utile per logout)
   void clearSuppliers() {
     _suppliers = [];
     _loading = false;

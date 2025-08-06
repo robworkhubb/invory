@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'notifications_service.dart';
+import 'notification_service.dart';
 
 class StockNotificationService {
   static final StockNotificationService _instance =
@@ -11,7 +11,7 @@ class StockNotificationService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final NotificationsService _notificationsService = NotificationsService();
+  final INotificationService _notificationsService = NotificationService();
 
   DateTime? _lastCheckTime;
   static const Duration _checkInterval = Duration(
@@ -222,7 +222,7 @@ class StockNotificationService {
       int lowStockCount = 0;
 
       for (final productDoc in productsSnapshot.docs) {
-        final productData = productDoc.data() as Map<String, dynamic>;
+        final productData = productDoc.data();
         final currentQuantity = productData['quantity'] as int? ?? 0;
         final threshold = productData['threshold'] as int? ?? 10;
 

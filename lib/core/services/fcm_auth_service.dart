@@ -8,6 +8,8 @@ class FCMAuthService {
   static String? _accessToken;
   static DateTime? _tokenExpiry;
 
+  FCMAuthService();
+
   /// Genera un JWT token per l'autenticazione con Google OAuth2
   static Future<String> _generateJWT({
     required String clientEmail,

@@ -25,7 +25,12 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+      print('🔍 Controllo autenticazione utente...');
+      print('   - isAuthenticated: ${authProvider.isAuthenticated}');
+      print('   - currentUser: ${authProvider.currentUser?.email ?? 'null'}');
+
       if (authProvider.isAuthenticated) {
+        print('✅ Utente autenticato, navigando alla home...');
         // Utente già autenticato, vai alla home
         Navigator.pushReplacement(
           context,
@@ -45,6 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         );
       } else {
+        print('❌ Utente non autenticato, navigando al login...');
         // Utente non autenticato, vai al login
         Navigator.pushReplacement(
           context,

@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:invory/presentation/providers/supplier_provider.dart';
-import 'package:invory/presentation/providers/product_provider.dart';
-import 'package:invory/presentation/providers/auth_provider.dart';
-import 'package:invory/presentation/screens/splash_screen.dart';
-import 'package:invory/firebase_options.dart';
-import 'package:invory/theme.dart';
-import 'package:invory/core/di/injection_container.dart' as di;
-import 'package:invory/core/services/notifications_service.dart';
-import 'package:invory/core/services/fcm_notification_service.dart';
-import 'package:invory/core/services/fcm_web_service.dart';
-import 'package:invory/core/services/stock_notification_service.dart';
-import 'package:invory/presentation/widgets/notification_handler.dart';
-import 'package:invory/core/config/app_config.dart';
+import 'firebase_options.dart';
+import 'core/config/app_config.dart';
+import 'core/config/locale_config.dart';
+import 'core/di/injection_container.dart' as di;
+import 'core/services/service_worker_manager.dart';
+import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/product_provider.dart';
+import 'presentation/providers/supplier_provider.dart';
+import 'presentation/screens/splash_screen.dart';
+import 'theme.dart';
 import 'dart:js' as js;
 import 'package:flutter/foundation.dart';
 
@@ -72,65 +68,78 @@ void main() async {
     );
   }
 
-  // Parallel initialization for better startup time
-  await Future.wait([
-    initializeDateFormatting('it_IT', null),
-    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
-  ]);
-
-  // Initialize dependency injection
+  // Inizializzazione sequenziale per garantire l'ordine corretto
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await di.init();
 
-  // Initialize notification services through GetIt
+  // Inizializza i dati di localizzazione per intl
+  await LocaleConfig.initialize();
+
+  // Inizializza il Service Worker Manager (solo per web)
+  if (kIsWeb) {
+    await _initializeServiceWorker();
+  }
+
+  runApp(const MyApp());
+}
+
+/// Inizializza il Service Worker Manager per il web
+Future<void> _initializeServiceWorker() async {
   try {
-    final notificationService = di.sl<NotificationsService>();
-    await notificationService.initialize();
-
-    final fcmNotificationService = di.sl<FCMNotificationService>();
-    await fcmNotificationService.initialize();
-
-    final fcmWebService = di.sl<FCMWebService>();
-    await fcmWebService.initialize();
-
-    final stockNotificationService = di.sl<StockNotificationService>();
-    await stockNotificationService.initialize();
-
     if (AppConfig.enableLogging) {
       print(
-        '${AppConfig.logPrefix} ✅ Tutti i servizi di notifica inizializzati',
+        '${AppConfig.logPrefix} 🔧 Inizializzazione Service Worker Manager...',
       );
+    }
+
+    final swManager = ServiceWorkerManager();
+    await swManager.initialize();
+
+    if (AppConfig.enableLogging) {
+      print('${AppConfig.logPrefix} ✅ Service Worker Manager inizializzato');
     }
   } catch (e) {
     if (AppConfig.enableLogging) {
       print(
-        '${AppConfig.logPrefix} ⚠️ Errore nell\'inizializzazione dei servizi di notifica: $e',
+        '${AppConfig.logPrefix} ⚠️ Errore inizializzazione Service Worker Manager: $e',
       );
     }
+    // Non bloccare l'avvio dell'app se il service worker fallisce
+  }
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => di.sl<AuthProvider>()),
+        ChangeNotifierProvider(create: (_) => di.sl<ProductProvider>()),
+        ChangeNotifierProvider(create: (_) => di.sl<SupplierProvider>()),
+      ],
+      child: MaterialApp(
+        title: AppConfig.appName,
+        theme: AppTheme.lightTheme,
+        debugShowCheckedModeBanner: AppConfig.isDebugMode,
+        home: const SplashScreen(),
+        builder: (context, child) {
+          // Ottimizzazioni per il web
+          if (kIsWeb && AppConfig.enableWebOptimizations) {
+            return _buildWebOptimizedApp(context, child);
+          }
+          return child!;
+        },
+      ),
+    );
   }
 
-  runApp(
-    NotificationHandler(
-      child: MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => di.sl<ProductProvider>()),
-          ChangeNotifierProvider(create: (_) => di.sl<SupplierProvider>()),
-          ChangeNotifierProvider(create: (_) => di.sl<AuthProvider>()),
-        ],
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          home: const SplashScreen(),
-          // Performance optimizations
-          builder: (context, child) {
-            return MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(1.0)),
-              child: child!,
-            );
-          },
-        ),
-      ),
-    ),
-  );
+  /// Builder ottimizzato per il web
+  Widget _buildWebOptimizedApp(BuildContext context, Widget? child) {
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+      child: child!,
+    );
+  }
 }

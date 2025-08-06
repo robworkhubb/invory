@@ -14,7 +14,7 @@ class CheckLowStockNotificationUseCase {
         print('🔍 Verificando notifica scorta per: ${product.nome}');
         print('📊 Quantità: ${product.quantita}, Soglia: ${product.soglia}');
       }
-      
+
       // Verifica se la quantità è sotto o uguale alla soglia
       if (product.quantita <= product.soglia) {
         if (kDebugMode) {
@@ -42,7 +42,7 @@ class CheckLowStockNotificationUseCase {
         print('🔍 Verificando esaurimento per: ${product.nome}');
         print('📊 Quantità: ${product.quantita}');
       }
-      
+
       if (product.quantita == 0) {
         if (kDebugMode) {
           print('🚨 PRODOTTO ESAURITO! Invio notifica...');
@@ -60,4 +60,4 @@ class CheckLowStockNotificationUseCase {
       print('❌ Errore nella verifica notifica esaurimento: $e');
     }
   }
-} 
+}

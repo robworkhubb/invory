@@ -7,7 +7,6 @@
       "name": "invory",
       "version": "1.0.0+1",
       "dependencies": [
-        "animations",
         "cloud_firestore",
         "crypto",
         "cupertino_icons",
@@ -16,9 +15,7 @@
         "firebase_messaging",
         "fl_chart",
         "flutter",
-        "flutter_floating_bottom_bar",
         "flutter_local_notifications",
-        "flutter_staggered_animations",
         "get_it",
         "http",
         "intl",
@@ -118,20 +115,6 @@
       ]
     },
     {
-      "name": "flutter_floating_bottom_bar",
-      "version": "1.3.0",
-      "dependencies": [
-        "flutter"
-      ]
-    },
-    {
-      "name": "flutter_staggered_animations",
-      "version": "1.1.1",
-      "dependencies": [
-        "flutter"
-      ]
-    },
-    {
       "name": "permission_handler",
       "version": "12.0.1",
       "dependencies": [
@@ -142,13 +125,6 @@
         "permission_handler_html",
         "permission_handler_platform_interface",
         "permission_handler_windows"
-      ]
-    },
-    {
-      "name": "animations",
-      "version": "2.0.11",
-      "dependencies": [
-        "flutter"
       ]
     },
     {

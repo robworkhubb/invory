@@ -4,7 +4,7 @@ import '../../domain/entities/user.dart';
 import 'package:provider/provider.dart';
 import 'product_provider.dart';
 import 'supplier_provider.dart';
-import '../../core/services/notifications_service.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/fcm_web_service.dart';
 import '../../core/services/fcm_notification_service.dart';
 import 'package:flutter/foundation.dart';
@@ -12,14 +12,14 @@ import '../../core/di/injection_container.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthRepository _authRepository;
-  final NotificationsService _notificationsService;
+  final INotificationService _notificationsService;
   final FCMWebService _fcmWebService;
   final FCMNotificationService _fcmNotificationService;
   User? _currentUser;
   bool _isLoading = false;
 
   AuthProvider(this._authRepository)
-    : _notificationsService = sl<NotificationsService>(),
+    : _notificationsService = sl<INotificationService>(),
       _fcmWebService = sl<FCMWebService>(),
       _fcmNotificationService = sl<FCMNotificationService>() {
     _currentUser = _authRepository.getCurrentUser();
@@ -116,7 +116,6 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Metodo per ricaricare i dati quando l'utente fa login
   void reloadUserData(BuildContext context) {
     try {
       final productProvider = Provider.of<ProductProvider>(

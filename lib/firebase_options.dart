@@ -73,3 +73,10 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.invory.app',
   );
 }
+
+/// VAPID Key per le notifiche web
+/// Questa chiave deve essere ottenuta da Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
+class VapidKeys {
+  static const String vapidKey =
+      'BMDdRanIyEdtiUDMzOON8gLELJbQV_lBfhx_rb_Q5WEJ9GFdtV0ObfPvKFnjOyrPFMTwcgW7wh1FBpf0F2bDE4M';
+}

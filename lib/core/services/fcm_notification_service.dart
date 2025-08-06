@@ -94,7 +94,7 @@ class FCMNotificationService {
 
       if (kDebugMode) {
         print(
-          'Token FCM salvato: ${token.length > 20 ? token.substring(0, 20) + '...' : token}',
+          'Token FCM salvato: ${token.length > 20 ? '${token.substring(0, 20)}...' : token}',
         );
       }
     } catch (e) {

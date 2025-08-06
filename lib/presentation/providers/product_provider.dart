@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../../domain/entities/product.dart';
-import '../../core/services/notifications_service.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/stock_notification_service.dart';
 import 'dart:async'; // Import per StreamSubscription
 
 class ProductProvider with ChangeNotifier {
   final ProductRepository _productRepository;
-  final NotificationsService _notificationService;
+  final INotificationService _notificationService;
   final StockNotificationService _stockNotificationService;
 
   List<Product> _prodotti = [];
@@ -32,22 +32,12 @@ class ProductProvider with ChangeNotifier {
   ) {
     // Lazy loading - only load when needed
     _initializeProvider();
-    _initializeNotifications();
   }
 
   void _initializeProvider() {
     if (!_isInitialized) {
       _loadProducts();
       _isInitialized = true;
-    }
-  }
-
-  Future<void> _initializeNotifications() async {
-    try {
-      await _notificationService.initialize();
-      await _stockNotificationService.initialize();
-    } catch (e) {
-      print('Errore nell\'inizializzazione notifiche: $e');
     }
   }
 
@@ -116,34 +106,38 @@ class ProductProvider with ChangeNotifier {
   List<String> get uniqueCategories =>
       _prodotti.map((p) => p.categoria).toSet().toList();
 
-  // Metodo privato per caricare i prodotti automaticamente
   void _loadProducts() {
     try {
+      print('🔄 Iniziando caricamento prodotti...');
       _productsSubscription = _productRepository.fetchProducts().listen(
         (prodotti) {
+          print('✅ Prodotti caricati: ${prodotti.length} elementi');
           _prodotti = prodotti;
           _loading = false;
           notifyListeners();
 
           // Controlla le notifiche dopo aver caricato i prodotti
-          checkAndShowNotifications();
+          try {
+            checkAndShowNotifications();
+          } catch (e) {
+            print('⚠️ Errore nel controllo notifiche: $e');
+          }
         },
         onError: (error) {
-          print('Errore nel caricamento prodotti: $error');
+          print('❌ Errore nel caricamento prodotti: $error');
           _prodotti = [];
           _loading = false;
           notifyListeners();
         },
       );
     } catch (e) {
-      print('Errore nell\'inizializzazione del stream prodotti: $e');
+      print('❌ Errore nell\'inizializzazione del stream prodotti: $e');
       _prodotti = [];
       _loading = false;
       notifyListeners();
     }
   }
 
-  // Metodo pubblico per ricaricare i prodotti (utile per cambio account)
   void reloadProducts() {
     _productsSubscription?.cancel();
     _productsSubscription = null;
@@ -153,7 +147,6 @@ class ProductProvider with ChangeNotifier {
     _loadProducts();
   }
 
-  // Metodo per pulire i dati (utile per logout)
   void clearProducts() {
     _productsSubscription?.cancel();
     _productsSubscription = null;

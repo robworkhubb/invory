@@ -16,6 +16,17 @@ abstract class INotificationService {
   Future<void> requestPermissions();
   Future<void> showLowStockNotification(Product product);
   Future<void> showOutOfStockNotification(Product product);
+  Future<void> sendLowStockNotification({
+    required String productName,
+    required int currentQuantity,
+    required int threshold,
+  });
+  Future<void> sendOutOfStockNotification({required String productName});
+  Future<void> sendNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  });
   Future<void> cancelNotification(int id);
   Future<void> cancelAllNotifications();
   Future<bool> isSupported();
@@ -23,18 +34,24 @@ abstract class INotificationService {
   Future<bool> canInstallPWA();
   Future<void> showInstallPrompt();
   Future<void> savePendingToken();
+  Future<void> savePendingTokens();
+  Future<List<Map<String, dynamic>>> getCurrentUserTokens();
+  Future<void> cleanupOldTokens();
 }
 
 class NotificationService implements INotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-  NotificationService._internal();
+  NotificationService._internal() {
+    _fcmService = FCMNotificationService();
+    _webService = FCMWebService();
+  }
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FCMNotificationService _fcmService = FCMNotificationService();
-  final FCMWebService _webService = FCMWebService();
+  late final FCMNotificationService _fcmService;
+  late final FCMWebService _webService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _isInitialized = false;
@@ -263,7 +280,6 @@ class NotificationService implements INotificationService {
   // Token in attesa di essere salvato dopo l'autenticazione
   String? _pendingToken;
 
-  // Metodo per salvare il token pendente dopo l'autenticazione
   @override
   Future<void> savePendingToken() async {
     if (_pendingToken != null) {
@@ -274,7 +290,43 @@ class NotificationService implements INotificationService {
     }
   }
 
-  // Metodo per forzare la richiesta di un nuovo token FCM
+  @override
+  Future<void> savePendingTokens() async {
+    await savePendingToken();
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getCurrentUserTokens() async {
+    try {
+      if (kIsWeb) {
+        return await _webService.getUserTokens();
+      } else {
+        return await _fcmService.getCurrentUserTokens();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nel recupero dei token: $e');
+      }
+      return [];
+    }
+  }
+
+  @override
+  Future<void> cleanupOldTokens() async {
+    try {
+      if (kIsWeb) {
+        // La pulizia per web è gestita dal FCMWebService
+        return;
+      } else {
+        await _fcmService.cleanupOldTokens();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Errore nella pulizia dei token: $e');
+      }
+    }
+  }
+
   Future<String?> forceTokenRefresh() async {
     try {
       debugPrint('Forzando refresh del token FCM...');
@@ -440,65 +492,41 @@ class NotificationService implements INotificationService {
 
   @override
   Future<void> showLowStockNotification(Product product) async {
-    if (kDebugMode) {
-      print(
-        '🔔 NotificationService: showLowStockNotification chiamato per ${product.nome}',
-      );
-      print('📊 Permessi concessi: $_permissionsGranted');
-      print('🌐 È web: $kIsWeb');
-    }
-
-    if (!_permissionsGranted) {
-      if (kDebugMode) {
-        print('❌ Permessi non concessi, notifica non inviata');
-      }
-      return;
-    }
-
-    // Usa il servizio appropriato per la piattaforma
-    if (kIsWeb) {
-      if (kDebugMode) {
-        print('🌐 Invio notifica web per: ${product.nome}');
-      }
-      await _webService.sendLowStockNotification(
+    await _sendNotificationWithLogging(
+      product: product,
+      notificationType: 'low_stock',
+      webServiceCall: () => _webService.sendLowStockNotification(
         productName: product.nome,
         currentQuantity: product.quantita,
         threshold: product.soglia,
-      );
-      if (kDebugMode) {
-        print('✅ Notifica web inviata per: ${product.nome}');
-      }
-    } else {
-      if (kDebugMode) {
-        print('📱 Invio notifica mobile per: ${product.nome}');
-      }
-      // Invia notifica FCM per mobile
-      await _fcmService.sendLowStockNotification(
+      ),
+      mobileServiceCall: () => _fcmService.sendLowStockNotification(
         productName: product.nome,
         currentQuantity: product.quantita,
         threshold: product.soglia,
-      );
-
-      // Mostra anche notifica locale
-      await _showMobileNotification(
+      ),
+      mobileLocalNotification: () => _showMobileNotification(
         product,
         'Scorte Basse: ${product.nome}',
         'Quantità: ${product.quantita} (Soglia: ${product.soglia})',
         'low_stock_channel',
         product.hashCode,
         const Color(0xFFFF9800),
-      );
-      if (kDebugMode) {
-        print('✅ Notifica mobile inviata per: ${product.nome}');
-      }
-    }
+      ),
+    );
   }
 
-  @override
-  Future<void> showOutOfStockNotification(Product product) async {
+  /// Metodo helper per inviare notifiche con logging
+  Future<void> _sendNotificationWithLogging({
+    required Product product,
+    required String notificationType,
+    required Future<void> Function() webServiceCall,
+    required Future<void> Function() mobileServiceCall,
+    Future<void> Function()? mobileLocalNotification,
+  }) async {
     if (kDebugMode) {
       print(
-        '🔔 NotificationService: showOutOfStockNotification chiamato per ${product.nome}',
+        '🔔 NotificationService: ${notificationType}_notification chiamato per ${product.nome}',
       );
       print('📊 Permessi concessi: $_permissionsGranted');
       print('🌐 È web: $kIsWeb');
@@ -511,21 +539,43 @@ class NotificationService implements INotificationService {
       return;
     }
 
-    // Usa il servizio appropriato per la piattaforma
-    if (kIsWeb) {
-      if (kDebugMode) {
-        print('🌐 Invio notifica esaurimento web per: ${product.nome}');
+    try {
+      if (kIsWeb) {
+        if (kDebugMode) {
+          print('🌐 Invio notifica web per: ${product.nome}');
+        }
+        await webServiceCall();
+        if (kDebugMode) {
+          print('✅ Notifica web inviata per: ${product.nome}');
+        }
+      } else {
+        if (kDebugMode) {
+          print('📱 Invio notifica mobile per: ${product.nome}');
+        }
+        await mobileServiceCall();
+        
+        if (mobileLocalNotification != null) {
+          await mobileLocalNotification();
+        }
+        
+        if (kDebugMode) {
+          print('✅ Notifica mobile inviata per: ${product.nome}');
+        }
       }
-      await _webService.sendOutOfStockNotification(productName: product.nome);
+    } catch (e) {
       if (kDebugMode) {
-        print('✅ Notifica esaurimento web inviata per: ${product.nome}');
+        print('❌ Errore nell\'invio notifica: $e');
       }
-    } else {
-      if (kDebugMode) {
-        print('📱 Invio notifica esaurimento mobile per: ${product.nome}');
-      }
-      // Invia notifica FCM per mobile
-      await _fcmService.sendNotificationToUser(
+    }
+  }
+
+  @override
+  Future<void> showOutOfStockNotification(Product product) async {
+    await _sendNotificationWithLogging(
+      product: product,
+      notificationType: 'out_of_stock',
+      webServiceCall: () => _webService.sendOutOfStockNotification(productName: product.nome),
+      mobileServiceCall: () => _fcmService.sendNotificationToUser(
         title: 'Prodotto esaurito',
         body: 'Il prodotto ${product.nome} è completamente esaurito',
         data: {
@@ -533,20 +583,103 @@ class NotificationService implements INotificationService {
           'productName': product.nome,
           'currentQuantity': '0',
         },
-      );
-
-      // Mostra anche notifica locale
-      await _showMobileNotification(
+      ),
+      mobileLocalNotification: () => _showMobileNotification(
         product,
         'Prodotto Esaurito: ${product.nome}',
         'Il prodotto è completamente esaurito!',
         'out_of_stock_channel',
         product.hashCode + 1000,
         const Color(0xFFF44336),
+      ),
+    );
+  }
+
+  @override
+  Future<void> sendLowStockNotification({
+    required String productName,
+    required int currentQuantity,
+    required int threshold,
+  }) async {
+    if (kDebugMode) {
+      print(
+        '🔔 NotificationService: sendLowStockNotification chiamato per $productName',
       );
+    }
+
+    if (!_permissionsGranted) {
       if (kDebugMode) {
-        print('✅ Notifica esaurimento mobile inviata per: ${product.nome}');
+        print('❌ Permessi non concessi, notifica non inviata');
       }
+      return;
+    }
+
+    if (kIsWeb) {
+      await _webService.sendLowStockNotification(
+        productName: productName,
+        currentQuantity: currentQuantity,
+        threshold: threshold,
+      );
+    } else {
+      await _fcmService.sendLowStockNotification(
+        productName: productName,
+        currentQuantity: currentQuantity,
+        threshold: threshold,
+      );
+    }
+  }
+
+  @override
+  Future<void> sendOutOfStockNotification({required String productName}) async {
+    if (kDebugMode) {
+      print(
+        '🔔 NotificationService: sendOutOfStockNotification chiamato per $productName',
+      );
+    }
+
+    if (!_permissionsGranted) {
+      if (kDebugMode) {
+        print('❌ Permessi non concessi, notifica non inviata');
+      }
+      return;
+    }
+
+    if (kIsWeb) {
+      await _webService.sendOutOfStockNotification(productName: productName);
+    } else {
+      await _fcmService.sendOutOfStockNotification(productName: productName);
+    }
+  }
+
+  @override
+  Future<void> sendNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    if (kDebugMode) {
+      print('🔔 NotificationService: sendNotification chiamato per $title');
+    }
+
+    if (!_permissionsGranted) {
+      if (kDebugMode) {
+        print('❌ Permessi non concessi, notifica non inviata');
+      }
+      return;
+    }
+
+    if (kIsWeb) {
+      await _webService.sendNotificationToAllDevices(
+        title: title,
+        body: body,
+        data: data,
+      );
+    } else {
+      await _fcmService.sendNotificationToUser(
+        title: title,
+        body: body,
+        data: data,
+      );
     }
   }
 
