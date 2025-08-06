@@ -3,12 +3,16 @@ workflows:
     name: Invory iOS Unsigned Build
     environment:
       flutter: stable
-      xcode: latest  # meglio forzare una versione stabile che non sia l'ultima per ora
+      xcode: 15.2
     scripts:
-      - name: Force iOS deployment target
+      - name: Force iOS deployment target in Podfile
         script: |
-          sed -i '' "s/platform :ios, '10.0'/platform :ios, '14.0'/g" ios/Podfile
-          sed -i '' "s/platform :ios, '10.0'/platform :ios, '14.0'/g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i "s/platform :ios, '10.0'/platform :ios, '14.0'/g" ios/Podfile
+
+      - name: Force iOS deployment target in Xcode project
+        script: |
+          sed -i -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g" ios/Runner.xcodeproj/project.pbxproj
+
       - name: Get Flutter dependencies
         script: flutter pub get
 
