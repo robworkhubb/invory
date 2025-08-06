@@ -7,11 +7,15 @@ workflows:
     scripts:
       - name: Force iOS deployment target in Podfile
         script: |
-          sed -i "s/platform :ios, '10.0'/platform :ios, '14.0'/g" ios/Podfile
+          sed -i.bak "s/platform :ios, '10.0'/platform :ios, '14.0'/g" ios/Podfile
+          rm ios/Podfile.bak
+
 
       - name: Force iOS deployment target in Xcode project
         script: |
-          sed -i -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g" ios/Runner.xcodeproj/project.pbxproj
+          sed -i.bak -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g" ios/Runner.xcodeproj/project.pbxproj
+          rm ios/Runner.xcodeproj/project.pbxproj.bak
+
 
       - name: Get Flutter dependencies
         script: flutter pub get
